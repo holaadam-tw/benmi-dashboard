@@ -275,69 +275,63 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
 
 <!-- ══ PAGE: 採購發票 ══ -->
 <div id="page-purchase" class="page">
-  <div style="margin-bottom:20px;">
-    <div style="font-size:22px;font-weight:700;">採購發票記錄</div>
-    <div style="font-size:12px;color:var(--muted);margin-top:2px;">LINE Bot 自動記錄 · Google Drive 備份</div>
+  <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;">
+    <div>
+      <div style="font-size:22px;font-weight:700;">採購發票記錄</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;">LINE Bot 自動記錄 · Google Sheets 即時同步</div>
+    </div>
+    <button onclick="loadInvoices()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--sans);">↻ 重新載入</button>
   </div>
 
-  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+  <!-- KPI row -->
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
     <div class="kpi cost">
-      <div class="kpi-label">本月採購合計</div>
-      <div class="kpi-value" style="color:var(--accent2);">$83,085</div>
-      <div class="kpi-change">2月份（已核對）</div>
+      <div class="kpi-label">本月發票張數</div>
+      <div class="kpi-value" id="inv-count" style="color:var(--accent2);">—</div>
+      <div class="kpi-change" id="inv-month">載入中...</div>
     </div>
     <div class="kpi" style="border-top:2px solid var(--green);">
-      <div class="kpi-label">發票張數</div>
-      <div class="kpi-value" style="color:var(--green);">52</div>
-      <div class="kpi-change">兩批次（02/01 + 25/02）</div>
+      <div class="kpi-label">本月採購合計</div>
+      <div class="kpi-value" id="inv-total" style="color:var(--green);">—</div>
+      <div class="kpi-change">有填金額者</div>
+    </div>
+    <div class="kpi" style="border-top:2px solid var(--accent);">
+      <div class="kpi-label">最近上傳</div>
+      <div class="kpi-value" id="inv-latest" style="color:var(--accent);font-size:16px;">—</div>
+      <div class="kpi-change" id="inv-who">—</div>
     </div>
     <div class="kpi" style="border-top:2px solid var(--muted);">
-      <div class="kpi-label">最近記錄</div>
-      <div class="kpi-value" style="color:var(--text);font-size:18px;">3/26</div>
-      <div class="kpi-change up">LINE Bot 運作中 ✓</div>
+      <div class="kpi-label">Bot 狀態</div>
+      <div class="kpi-value" style="color:var(--green);font-size:18px;">✓ 運作中</div>
+      <div class="kpi-change up">LINE @591lrhmq</div>
     </div>
   </div>
 
+  <!-- Live invoice table -->
   <div class="table-box">
     <div class="table-header">
-      <div class="table-title">2月食材採購明細（庫存系統）</div>
-      <div style="font-size:10px;color:var(--muted);">來源：Xuất_nhập_tồn.xlsx</div>
+      <div class="table-title">發票記錄（LINE Bot 即時）</div>
+      <div style="font-size:10px;color:var(--muted);" id="inv-updated">來源：Google Sheets</div>
     </div>
-    <table>
+    <div id="inv-loading" style="padding:40px;text-align:center;color:var(--muted);font-size:13px;">
+      ⏳ 載入發票資料中...
+    </div>
+    <table id="inv-table" style="display:none;">
       <thead><tr>
         <th class="L" style="width:40px">#</th>
-        <th class="L">品項</th>
-        <th>進貨日</th>
-        <th>單位</th>
-        <th>金額</th>
-        <th>佔比</th>
+        <th class="L">日期</th>
+        <th class="L">時間</th>
+        <th class="L">傳送者</th>
+        <th style="width:80px">金額</th>
+        <th class="L">備注</th>
+        <th class="L">照片</th>
       </tr></thead>
-      <tbody>
-        <!-- Batch 1 -->
-        <tr><td colspan="6" style="background:var(--surface2);color:var(--accent2);font-size:10px;font-family:var(--sans);padding:8px 16px;text-align:left;font-weight:700;">第一批　02/01（1月2日進貨）　34筆</td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">1</td><td class="L name">Ground Pork 豬絞肉 ×3</td><td>02/01</td><td>jin</td><td>$11,520</td><td><span class="badge badge-amber">13.8%</span></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">2</td><td class="L name">Ham 火腿</td><td>02/01</td><td>pcs</td><td>$4,400</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">3</td><td class="L name">Thịt gà 雞肉 ×2</td><td>02/01</td><td>bao</td><td>$3,730</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">4</td><td class="L name">CF100goi 咖啡粉</td><td>02/01</td><td>goi</td><td>$1,745</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">5</td><td class="L name">Sugar 糖</td><td>02/01</td><td>goi</td><td>$720</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">6</td><td class="L name">Pork Shoulder 豬肩肉</td><td>02/01</td><td>jin</td><td>$2,385</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">7</td><td class="L name">Banhmi Bag 三明治袋</td><td>02/01</td><td>bao</td><td>$660</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">8</td><td class="L name">Cheese lát 起司片 ×2</td><td>02/01</td><td>pcs</td><td>$1,535</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">9-34</td><td class="L name" style="color:var(--muted);">其他（醬料、包材、飲品等）</td><td>02/01</td><td>—</td><td>$5,873</td><td></td></tr>
-        <tr class="total-row"><td colspan="4" class="L" style="font-family:var(--sans);">第一批小計</td><td>$32,568</td><td></td></tr>
-        <!-- Batch 2 -->
-        <tr><td colspan="6" style="background:var(--surface2);color:var(--green);font-size:10px;font-family:var(--sans);padding:8px 16px;text-align:left;font-weight:700;">第二批　25/02（2月25日進貨）　18筆</td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">1</td><td class="L name">BM Giòn 越式法棍</td><td>25/02</td><td>pcs</td><td>$32,987</td><td><span class="badge badge-amber">65.3%</span></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">2</td><td class="L name">White radish 白蘿蔔 ×2</td><td>25/02</td><td>pcs</td><td>$6,445</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">3</td><td class="L name">Ground Pork 豬絞肉</td><td>25/02</td><td>jin</td><td>$3,840</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">4</td><td class="L name">Pork Shoulder 豬肩肉</td><td>25/02</td><td>jin</td><td>$2,370</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">5</td><td class="L name">Thịt gà 雞肉</td><td>25/02</td><td>bao</td><td>$1,820</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">6</td><td class="L name">Pate 肉醬</td><td>25/02</td><td>lon</td><td>$1,350</td><td></td></tr>
-        <tr><td class="L" style="color:var(--muted);font-size:10px;">7-18</td><td class="L name" style="color:var(--muted);">其他（冰塊、起司、魚露等）</td><td>25/02</td><td>—</td><td>$1,705</td><td></td></tr>
-        <tr class="total-row"><td colspan="4" class="L" style="font-family:var(--sans);">第二批小計</td><td>$50,517</td><td></td></tr>
-        <tr class="profit-row"><td colspan="4" class="L" style="font-family:var(--sans);color:var(--text);">✅ 2月食材合計（庫存系統 = 月報）</td><td style="color:var(--accent);">$83,085</td><td></td></tr>
-      </tbody>
+      <tbody id="inv-tbody"></tbody>
     </table>
+    <div id="inv-empty" style="display:none;padding:40px;text-align:center;color:var(--muted);font-size:13px;">
+      📭 目前沒有發票記錄<br>
+      <span style="font-size:11px;margin-top:6px;display:block;">在 LINE 群組傳圖片，Bot 會自動記錄</span>
+    </div>
   </div>
 </div>
 
@@ -642,9 +636,87 @@ function buildProducts() {
   });
 }
 
+// ── Load invoices from Google Sheets ──
+const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhrTVj6ZRhhNafyDDqkoHcB9C7pgF-b7YcZwWDINKL8yElLH45lptTwigLKF-N0gtiwBOPHNsqCueF/pub?gid=390599286&single=true&output=csv';
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+  return lines.slice(1).map(line => {
+    const vals = [];
+    let cur = '', inQ = false;
+    for (let c of line) {
+      if (c === '"') inQ = !inQ;
+      else if (c === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+      else cur += c;
+    }
+    vals.push(cur.trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = (vals[i]||'').replace(/^"|"$/g,''));
+    return obj;
+  });
+}
+
+async function loadInvoices() {
+  document.getElementById('inv-loading').style.display = 'block';
+  document.getElementById('inv-table').style.display = 'none';
+  document.getElementById('inv-empty').style.display = 'none';
+
+  try {
+    const res = await fetch(SHEET_CSV);
+    const text = await res.text();
+    const rows = parseCSV(text).filter(r => r['日期']);
+
+    if (!rows.length) {
+      document.getElementById('inv-loading').style.display = 'none';
+      document.getElementById('inv-empty').style.display = 'block';
+      return;
+    }
+
+    // Current month
+    const now = new Date();
+    const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    const monthRows = rows.filter(r => r['月份'] === thisMonth);
+
+    // KPIs
+    document.getElementById('inv-count').textContent = monthRows.length;
+    document.getElementById('inv-month').textContent = thisMonth + ' 本月';
+    const totalAmt = monthRows.reduce((s,r) => s + (parseFloat(r['金額'])||0), 0);
+    document.getElementById('inv-total').textContent = totalAmt ? '$' + totalAmt.toLocaleString() : '待填入';
+    const latest = rows[rows.length-1];
+    document.getElementById('inv-latest').textContent = latest['日期'] ? latest['日期'].slice(5) : '—';
+    document.getElementById('inv-who').textContent = latest['傳送者'] || '—';
+    document.getElementById('inv-updated').textContent = '最後更新：' + new Date().toLocaleTimeString('zh-TW');
+
+    // Table — show newest first
+    const tbody = document.getElementById('inv-tbody');
+    tbody.innerHTML = '';
+    [...rows].reverse().forEach((r, i) => {
+      const amt = parseFloat(r['金額']);
+      const driveUrl = r['Drive連結'] || '';
+      tbody.innerHTML += `<tr>
+        <td class="L" style="color:var(--muted);font-size:10px;">${rows.length - i}</td>
+        <td class="L">${r['日期']||'—'}</td>
+        <td class="L" style="color:var(--muted);font-size:11px;">${r['時間']||'—'}</td>
+        <td class="L">${r['傳送者']||'—'}</td>
+        <td>${amt ? '$'+amt.toLocaleString() : '<span style="color:var(--muted);font-size:10px;">待填</span>'}</td>
+        <td class="L" style="color:var(--muted);font-size:11px;">${r['備注']||'—'}</td>
+        <td class="L">${driveUrl ? `<a href="${driveUrl}" target="_blank" style="color:var(--accent2);font-size:11px;text-decoration:none;">📷 查看</a>` : '—'}</td>
+      </tr>`;
+    });
+
+    document.getElementById('inv-loading').style.display = 'none';
+    document.getElementById('inv-table').style.display = 'table';
+
+  } catch(e) {
+    document.getElementById('inv-loading').innerHTML = '⚠️ 載入失敗，請確認試算表已公開<br><span style="font-size:11px;">'+e.message+'</span>';
+  }
+}
+
 // ── Init ──
 updateOverview();
 buildProducts();
+loadInvoices();
 </script>
 </body>
 </html>
