@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>本米麵包 — 營運報表</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0f14;
+  --surface: #161921;
+  --surface2: #1e2330;
+  --border: #252b3a;
+  --accent: #e8a045;
+  --accent2: #5b8dee;
+  --green: #3ecf8e;
+  --red: #f06565;
+  --text: #e8eaf0;
+  --muted: #6b7280;
+  --mono: 'DM Mono', monospace;
+  --sans: 'Noto Sans TC', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--sans); min-height:100vh; }
+
+/* Nav */
+nav { display:flex; align-items:center; justify-content:space-between; padding:18px 32px; border-bottom:1px solid var(--border); background:var(--surface); position:sticky; top:0; z-index:100; }
+.nav-logo { display:flex; align-items:center; gap:10px; }
+.nav-logo .mark { width:32px; height:32px; background:var(--accent); border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; color:#000; }
+.nav-logo h1 { font-size:15px; font-weight:700; letter-spacing:0.5px; }
+.nav-logo span { font-size:11px; color:var(--muted); margin-left:4px; }
+.nav-tabs { display:flex; gap:4px; }
+.tab { padding:6px 14px; border-radius:6px; font-size:12px; font-weight:500; cursor:pointer; border:none; background:transparent; color:var(--muted); transition:all 0.2s; }
+.tab.active { background:var(--surface2); color:var(--text); }
+.tab:hover:not(.active) { color:var(--text); }
+.nav-date { font-family:var(--mono); font-size:11px; color:var(--muted); }
+
+/* Main */
+main { padding:28px 32px; max-width:1400px; margin:0 auto; }
+
+/* Section */
+.section { margin-bottom:32px; }
+.section-header { display:flex; align-items:baseline; gap:12px; margin-bottom:16px; }
+.section-title { font-size:11px; font-weight:700; letter-spacing:2px; color:var(--muted); text-transform:uppercase; }
+.section-sub { font-size:11px; color:var(--muted); opacity:0.6; }
+
+/* KPI Cards */
+.kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
+.kpi { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px; position:relative; overflow:hidden; }
+.kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+.kpi.revenue::before { background:var(--accent); }
+.kpi.cost::before { background:var(--accent2); }
+.kpi.salary::before { background:#a78bfa; }
+.kpi.profit::before { background:var(--green); }
+.kpi-label { font-size:10px; font-weight:600; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
+.kpi-value { font-family:var(--mono); font-size:26px; font-weight:500; margin-bottom:6px; }
+.kpi.revenue .kpi-value { color:var(--accent); }
+.kpi.cost .kpi-value { color:var(--accent2); }
+.kpi.salary .kpi-value { color:#a78bfa; }
+.kpi.profit .kpi-value { color:var(--green); }
+.kpi-change { font-family:var(--mono); font-size:11px; color:var(--muted); }
+.kpi-change.up { color:var(--green); }
+.kpi-change.down { color:var(--red); }
+
+/* Chart area */
+.chart-row { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:14px; }
+.chart-box { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px; }
+.chart-title { font-size:11px; font-weight:700; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-bottom:16px; }
+
+/* Bar chart */
+.bar-chart { display:flex; align-items:flex-end; gap:6px; height:140px; }
+.bar-group { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; }
+.bar-wrap { width:100%; display:flex; gap:2px; align-items:flex-end; justify-content:center; }
+.bar { width:14px; border-radius:3px 3px 0 0; transition:opacity 0.2s; cursor:pointer; position:relative; }
+.bar:hover { opacity:0.8; }
+.bar-revenue { background:var(--accent); opacity:0.9; }
+.bar-cost { background:var(--accent2); opacity:0.7; }
+.bar-salary { background:#a78bfa; opacity:0.7; }
+.bar-label { font-family:var(--mono); font-size:9px; color:var(--muted); text-align:center; }
+
+/* Donut chart placeholder */
+.donut-wrap { display:flex; justify-content:center; align-items:center; flex-direction:column; gap:16px; height:140px; }
+.donut { position:relative; width:110px; height:110px; }
+.donut svg { transform:rotate(-90deg); }
+.donut-center { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; }
+.donut-center .pct { font-family:var(--mono); font-size:18px; font-weight:500; color:var(--green); }
+.donut-center .lbl { font-size:9px; color:var(--muted); }
+.donut-legend { display:flex; flex-direction:column; gap:6px; }
+.legend-item { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--muted); }
+.legend-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+/* Table */
+.table-box { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.table-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); }
+.table-title { font-size:11px; font-weight:700; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; }
+table { width:100%; border-collapse:collapse; }
+th { padding:10px 16px; font-size:10px; font-weight:600; letter-spacing:1px; color:var(--muted); text-transform:uppercase; text-align:right; border-bottom:1px solid var(--border); background:var(--surface2); }
+th.L { text-align:left; }
+td { padding:11px 16px; font-size:12px; border-bottom:1px solid var(--border); text-align:right; font-family:var(--mono); }
+td.L { text-align:left; font-family:var(--sans); }
+td.name { font-weight:500; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:var(--surface2); }
+.badge { display:inline-block; font-size:9px; font-weight:600; padding:2px 6px; border-radius:4px; font-family:var(--mono); }
+.badge-green { background:rgba(62,207,142,0.15); color:var(--green); }
+.badge-red { background:rgba(240,101,101,0.15); color:var(--red); }
+.badge-amber { background:rgba(232,160,69,0.15); color:var(--accent); }
+.badge-blue { background:rgba(91,141,238,0.15); color:var(--accent2); }
+
+/* Product table */
+.product-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+/* Profit row */
+tr.profit-row td { color:var(--green); font-weight:600; border-top:1px solid var(--border); }
+tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2); }
+
+/* Page visibility */
+.page { display:none; }
+.page.active { display:block; }
+
+/* Employee bars */
+.emp-bar-wrap { padding:16px 20px; }
+.emp-row { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.emp-name { font-size:12px; width:60px; flex-shrink:0; }
+.emp-bar-bg { flex:1; height:6px; background:var(--surface2); border-radius:3px; overflow:hidden; }
+.emp-bar-fill { height:100%; border-radius:3px; background:var(--accent); transition:width 0.6s ease; }
+.emp-hours { font-family:var(--mono); font-size:11px; color:var(--muted); width:50px; text-align:right; }
+.emp-salary { font-family:var(--mono); font-size:11px; color:var(--accent); width:60px; text-align:right; }
+
+/* Responsive */
+@media(max-width:900px) {
+  .kpi-grid { grid-template-columns:repeat(2,1fr); }
+  .chart-row { grid-template-columns:1fr; }
+  .product-grid { grid-template-columns:1fr; }
+  nav { padding:14px 16px; }
+  main { padding:16px; }
+}
+
+/* Fade in */
+@keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+.kpi { animation:fadeUp 0.4s ease both; }
+.kpi:nth-child(1) { animation-delay:0.05s; }
+.kpi:nth-child(2) { animation-delay:0.1s; }
+.kpi:nth-child(3) { animation-delay:0.15s; }
+.kpi:nth-child(4) { animation-delay:0.2s; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div class="mark">本</div>
+    <div>
+      <h1>本米麵包 <span>Benmi</span></h1>
+    </div>
+  </div>
+  <div class="nav-tabs">
+    <button class="tab active" onclick="showPage('overview')">月度總覽</button>
+    <button class="tab" onclick="showPage('purchase')">採購發票</button>
+    <button class="tab" onclick="showPage('salary')">薪資工時</button>
+    <button class="tab" onclick="showPage('products')">商品業績</button>
+  </div>
+  <div class="nav-date" id="navDate"></div>
+</nav>
+
+<main>
+
+<!-- ══ PAGE: 月度總覽 ══ -->
+<div id="page-overview" class="page active">
+
+  <!-- Month selector -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div>
+      <div style="font-size:22px;font-weight:700;" id="selectedMonthLabel">2026年2月</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;">最近更新：2026/03/27</div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button onclick="changeMonth(-1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;">◀</button>
+      <select id="monthSelect" onchange="selectMonth(this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--sans);">
+        <option value="0">2025年9月</option>
+        <option value="1">2025年10月</option>
+        <option value="2">2025年11月</option>
+        <option value="3">2025年12月</option>
+        <option value="4">2026年1月</option>
+        <option value="5" selected>2026年2月</option>
+        <option value="6">2026年3月（進行中）</option>
+      </select>
+      <button onclick="changeMonth(1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;">▶</button>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-grid">
+    <div class="kpi revenue">
+      <div class="kpi-label">POS 業績</div>
+      <div class="kpi-value" id="kpi-revenue">—</div>
+      <div class="kpi-change" id="kpi-revenue-change">—</div>
+    </div>
+    <div class="kpi cost">
+      <div class="kpi-label">食材成本</div>
+      <div class="kpi-value" id="kpi-food">—</div>
+      <div class="kpi-change" id="kpi-food-pct">—</div>
+    </div>
+    <div class="kpi salary">
+      <div class="kpi-label">薪資支出</div>
+      <div class="kpi-value" id="kpi-salary">—</div>
+      <div class="kpi-change" id="kpi-salary-pct">—</div>
+    </div>
+    <div class="kpi profit">
+      <div class="kpi-label">毛利</div>
+      <div class="kpi-value" id="kpi-profit">—</div>
+      <div class="kpi-change" id="kpi-margin">—</div>
+    </div>
+  </div>
+
+  <!-- Chart row -->
+  <div class="chart-row">
+    <div class="chart-box">
+      <div class="chart-title">六個月趨勢</div>
+      <div class="bar-chart" id="barChart"></div>
+      <div style="display:flex;gap:16px;margin-top:12px;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);"><span style="width:10px;height:10px;background:var(--accent);border-radius:2px;display:inline-block;"></span>業績</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);"><span style="width:10px;height:10px;background:var(--accent2);border-radius:2px;display:inline-block;"></span>食材</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);"><span style="width:10px;height:10px;background:#a78bfa;border-radius:2px;display:inline-block;"></span>薪資</div>
+      </div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">本月成本結構</div>
+      <div class="donut-wrap">
+        <div style="display:flex;gap:20px;align-items:center;">
+          <div class="donut">
+            <svg width="110" height="110" viewBox="0 0 110 110">
+              <circle cx="55" cy="55" r="42" fill="none" stroke="var(--surface2)" stroke-width="14"/>
+              <circle id="donut-food" cx="55" cy="55" r="42" fill="none" stroke="var(--accent2)" stroke-width="14" stroke-dasharray="264" stroke-dashoffset="264" style="transition:stroke-dashoffset 0.8s ease;"/>
+              <circle id="donut-salary" cx="55" cy="55" r="42" fill="none" stroke="#a78bfa" stroke-width="14" stroke-dasharray="264" stroke-dashoffset="264" style="transition:stroke-dashoffset 0.8s ease;"/>
+            </svg>
+            <div class="donut-center">
+              <div class="pct" id="donut-pct">—</div>
+              <div class="lbl">毛利率</div>
+            </div>
+          </div>
+          <div class="donut-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--accent);"></div><span>業績 <span id="leg-rev" style="color:var(--text);font-family:var(--mono);">—</span></span></div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--accent2);"></div><span>食材 <span id="leg-food" style="color:var(--text);font-family:var(--mono);">—</span></span></div>
+            <div class="legend-item"><div class="legend-dot" style="background:#a78bfa;"></div><span>薪資 <span id="leg-sal" style="color:var(--text);font-family:var(--mono);">—</span></span></div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--green);"></div><span>毛利 <span id="leg-profit" style="color:var(--green);font-family:var(--mono);font-weight:600;">—</span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly summary table -->
+  <div class="table-box">
+    <div class="table-header">
+      <div class="table-title">六個月損益彙整</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th class="L">月份</th>
+        <th>POS業績</th>
+        <th>食材成本</th>
+        <th>食材%</th>
+        <th>薪資支出</th>
+        <th>薪資%</th>
+        <th>毛利</th>
+        <th>毛利率</th>
+        <th>備注</th>
+      </tr></thead>
+      <tbody id="summaryTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ PAGE: 採購發票 ══ -->
+<div id="page-purchase" class="page">
+  <div style="margin-bottom:20px;">
+    <div style="font-size:22px;font-weight:700;">採購發票記錄</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px;">LINE Bot 自動記錄 · Google Drive 備份</div>
+  </div>
+
+  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="kpi cost">
+      <div class="kpi-label">本月採購合計</div>
+      <div class="kpi-value" style="color:var(--accent2);">$83,085</div>
+      <div class="kpi-change">2月份（已核對）</div>
+    </div>
+    <div class="kpi" style="border-top:2px solid var(--green);">
+      <div class="kpi-label">發票張數</div>
+      <div class="kpi-value" style="color:var(--green);">52</div>
+      <div class="kpi-change">兩批次（02/01 + 25/02）</div>
+    </div>
+    <div class="kpi" style="border-top:2px solid var(--muted);">
+      <div class="kpi-label">最近記錄</div>
+      <div class="kpi-value" style="color:var(--text);font-size:18px;">3/26</div>
+      <div class="kpi-change up">LINE Bot 運作中 ✓</div>
+    </div>
+  </div>
+
+  <div class="table-box">
+    <div class="table-header">
+      <div class="table-title">2月食材採購明細（庫存系統）</div>
+      <div style="font-size:10px;color:var(--muted);">來源：Xuất_nhập_tồn.xlsx</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th class="L" style="width:40px">#</th>
+        <th class="L">品項</th>
+        <th>進貨日</th>
+        <th>單位</th>
+        <th>金額</th>
+        <th>佔比</th>
+      </tr></thead>
+      <tbody>
+        <!-- Batch 1 -->
+        <tr><td colspan="6" style="background:var(--surface2);color:var(--accent2);font-size:10px;font-family:var(--sans);padding:8px 16px;text-align:left;font-weight:700;">第一批　02/01（1月2日進貨）　34筆</td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">1</td><td class="L name">Ground Pork 豬絞肉 ×3</td><td>02/01</td><td>jin</td><td>$11,520</td><td><span class="badge badge-amber">13.8%</span></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">2</td><td class="L name">Ham 火腿</td><td>02/01</td><td>pcs</td><td>$4,400</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">3</td><td class="L name">Thịt gà 雞肉 ×2</td><td>02/01</td><td>bao</td><td>$3,730</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">4</td><td class="L name">CF100goi 咖啡粉</td><td>02/01</td><td>goi</td><td>$1,745</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">5</td><td class="L name">Sugar 糖</td><td>02/01</td><td>goi</td><td>$720</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">6</td><td class="L name">Pork Shoulder 豬肩肉</td><td>02/01</td><td>jin</td><td>$2,385</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">7</td><td class="L name">Banhmi Bag 三明治袋</td><td>02/01</td><td>bao</td><td>$660</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">8</td><td class="L name">Cheese lát 起司片 ×2</td><td>02/01</td><td>pcs</td><td>$1,535</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">9-34</td><td class="L name" style="color:var(--muted);">其他（醬料、包材、飲品等）</td><td>02/01</td><td>—</td><td>$5,873</td><td></td></tr>
+        <tr class="total-row"><td colspan="4" class="L" style="font-family:var(--sans);">第一批小計</td><td>$32,568</td><td></td></tr>
+        <!-- Batch 2 -->
+        <tr><td colspan="6" style="background:var(--surface2);color:var(--green);font-size:10px;font-family:var(--sans);padding:8px 16px;text-align:left;font-weight:700;">第二批　25/02（2月25日進貨）　18筆</td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">1</td><td class="L name">BM Giòn 越式法棍</td><td>25/02</td><td>pcs</td><td>$32,987</td><td><span class="badge badge-amber">65.3%</span></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">2</td><td class="L name">White radish 白蘿蔔 ×2</td><td>25/02</td><td>pcs</td><td>$6,445</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">3</td><td class="L name">Ground Pork 豬絞肉</td><td>25/02</td><td>jin</td><td>$3,840</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">4</td><td class="L name">Pork Shoulder 豬肩肉</td><td>25/02</td><td>jin</td><td>$2,370</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">5</td><td class="L name">Thịt gà 雞肉</td><td>25/02</td><td>bao</td><td>$1,820</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">6</td><td class="L name">Pate 肉醬</td><td>25/02</td><td>lon</td><td>$1,350</td><td></td></tr>
+        <tr><td class="L" style="color:var(--muted);font-size:10px;">7-18</td><td class="L name" style="color:var(--muted);">其他（冰塊、起司、魚露等）</td><td>25/02</td><td>—</td><td>$1,705</td><td></td></tr>
+        <tr class="total-row"><td colspan="4" class="L" style="font-family:var(--sans);">第二批小計</td><td>$50,517</td><td></td></tr>
+        <tr class="profit-row"><td colspan="4" class="L" style="font-family:var(--sans);color:var(--text);">✅ 2月食材合計（庫存系統 = 月報）</td><td style="color:var(--accent);">$83,085</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ PAGE: 薪資工時 ══ -->
+<div id="page-salary" class="page">
+  <div style="margin-bottom:20px;">
+    <div style="font-size:22px;font-weight:700;">薪資與工時明細</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px;">來源：Working Hour 試算表（Equipment.xlsx）</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <!-- Jan -->
+    <div class="table-box">
+      <div class="table-header">
+        <div class="table-title">2026年1月</div>
+        <div style="font-size:10px;color:var(--muted);">✅ WH試算表驗證</div>
+      </div>
+      <div class="emp-bar-wrap">
+        <div class="emp-row"><div class="emp-name">Phuc</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:69%"></div></div><div class="emp-hours">134.5h</div><div class="emp-salary">$25,555</div></div>
+        <div class="emp-row"><div class="emp-name">Thuận</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:100%"></div></div><div class="emp-hours">195.5h</div><div class="emp-salary">$37,145</div></div>
+        <div class="emp-row"><div class="emp-name">Hà</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:86%;background:#a78bfa"></div></div><div class="emp-hours">168h</div><div class="emp-salary" style="color:#a78bfa;">$32,760</div></div>
+        <div class="emp-row"><div class="emp-name">Mia</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:87%;background:#5b8dee"></div></div><div class="emp-hours">170h</div><div class="emp-salary" style="color:#5b8dee;">$34,000</div></div>
+        <div class="emp-row"><div class="emp-name">Lan</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:64%"></div></div><div class="emp-hours">125.5h</div><div class="emp-salary">$23,845</div></div>
+        <div class="emp-row"><div class="emp-name" style="color:var(--muted)">Trang</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:0%"></div></div><div class="emp-hours" style="color:var(--muted)">0h</div><div class="emp-salary" style="color:var(--muted);">$0</div></div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding:12px 20px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:11px;color:var(--muted);">合計 793.5h</div>
+        <div style="font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:600;">$153,305</div>
+      </div>
+    </div>
+    <!-- Feb -->
+    <div class="table-box">
+      <div class="table-header">
+        <div class="table-title">2026年2月</div>
+        <div style="font-size:10px;color:var(--muted);">✅ WH試算表驗證</div>
+      </div>
+      <div class="emp-bar-wrap">
+        <div class="emp-row"><div class="emp-name">Phuc</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:42%"></div></div><div class="emp-hours">49.5h</div><div class="emp-salary">$9,405</div></div>
+        <div class="emp-row"><div class="emp-name">Thuận</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:93%"></div></div><div class="emp-hours">110h</div><div class="emp-salary">$20,900</div></div>
+        <div class="emp-row"><div class="emp-name">Hà</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:100%;background:#a78bfa"></div></div><div class="emp-hours">138h</div><div class="emp-salary" style="color:#a78bfa;">$26,910</div></div>
+        <div class="emp-row"><div class="emp-name">Mia</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:66%;background:#5b8dee"></div></div><div class="emp-hours">91.5h</div><div class="emp-salary" style="color:#5b8dee;">$18,300</div></div>
+        <div class="emp-row"><div class="emp-name">Lan</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:86%"></div></div><div class="emp-hours">118h</div><div class="emp-salary">$22,420</div></div>
+        <div class="emp-row"><div class="emp-name" style="color:var(--muted)">Trang</div><div class="emp-bar-bg"><div class="emp-bar-fill" style="width:0%"></div></div><div class="emp-hours" style="color:var(--muted)">0h</div><div class="emp-salary" style="color:var(--muted);">$0</div></div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding:12px 20px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:11px;color:var(--muted);">合計 507h</div>
+        <div style="font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:600;">$97,935</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Historical salary -->
+  <div class="table-box">
+    <div class="table-header"><div class="table-title">各月薪資彙整</div></div>
+    <table>
+      <thead><tr>
+        <th class="L">月份</th>
+        <th>員工人數</th>
+        <th>總工時</th>
+        <th>薪資合計</th>
+        <th>資料來源</th>
+      </tr></thead>
+      <tbody>
+        <tr><td class="L">2025年9月</td><td>4</td><td>156.5h</td><td>$29,735</td><td><span class="badge badge-amber">Evan填報</span></td></tr>
+        <tr><td class="L">2025年10月</td><td>7</td><td>621h</td><td>$117,990</td><td><span class="badge badge-amber">Evan填報</span></td></tr>
+        <tr><td class="L">2025年11月</td><td>7</td><td>545h</td><td>$103,550</td><td><span class="badge badge-amber">Evan填報</span></td></tr>
+        <tr><td class="L">2025年12月</td><td>—</td><td>—</td><td>—</td><td><span class="badge badge-blue">無WH記錄</span></td></tr>
+        <tr><td class="L">2026年1月</td><td>5</td><td>793.5h</td><td>$153,305</td><td><span class="badge badge-green">WH驗證 ✓</span></td></tr>
+        <tr><td class="L">2026年2月</td><td>5</td><td>507h</td><td>$97,935</td><td><span class="badge badge-green">WH驗證 ✓</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ PAGE: 商品業績 ══ -->
+<div id="page-products" class="page">
+  <div style="margin-bottom:20px;">
+    <div style="font-size:22px;font-weight:700;">商品業績報表</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px;">2026年3月26日 · 來源：POS 系統</div>
+  </div>
+
+  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
+    <div class="kpi revenue">
+      <div class="kpi-label">總銷售金額</div>
+      <div class="kpi-value">$241,723</div>
+      <div class="kpi-change">3月26日累計</div>
+    </div>
+    <div class="kpi" style="border-top:2px solid var(--green);">
+      <div class="kpi-label">總商品數量</div>
+      <div class="kpi-value" style="color:var(--green);">2,549</div>
+      <div class="kpi-change">件</div>
+    </div>
+    <div class="kpi" style="border-top:2px solid var(--accent2);">
+      <div class="kpi-label">品項數</div>
+      <div class="kpi-value" style="color:var(--accent2);">34</div>
+      <div class="kpi-change">種商品</div>
+    </div>
+  </div>
+
+  <div class="table-box">
+    <div class="table-header">
+      <div class="table-title">商品銷售排行</div>
+      <div style="font-size:10px;color:var(--muted);">3月26日 · POS系統</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th class="L" style="width:30px">#</th>
+        <th class="L">品項名稱</th>
+        <th>銷售數量</th>
+        <th>銷售金額</th>
+        <th>佔比</th>
+      </tr></thead>
+      <tbody id="productTable"></tbody>
+    </table>
+  </div>
+</div>
+
+</main>
+
+<script>
+// ── Data ──
+const MONTHS = ['9月','10月','11月','12月','1月','2月','3月'];
+const MONTH_LABELS = ['2025年9月','2025年10月','2025年11月','2025年12月','2026年1月','2026年2月','2026年3月（進行中）'];
+const DATA = [
+  { revenue:21837,  food:null,    salary:29735,  note:'開幕月（22/9起）' },
+  { revenue:113163, food:50277,   salary:117990, note:'Uber上線' },
+  { revenue:167725, food:74494,   salary:103550, note:'' },
+  { revenue:313417, food:205585,  salary:103550, note:'首個月報月' },
+  { revenue:393365, food:162040,  salary:153305, note:'最高業績' },
+  { revenue:209409, food:83085,   salary:97935,  note:'' },
+  { revenue:241723, food:null,    salary:null,   note:'進行中' },
+];
+
+const PRODUCTS = [
+  ['Cheese 雙層烤肉',272,31280],
+  ['燒肉麵包 / Braised pork',369,29590],
+  ['烤肉麵包 Grilled Meat',241,25305],
+  ['綜合麵包 / Mixed',146,18980],
+  ['Set 4',126,16128],
+  ['Set1',169,15210],
+  ['Set 5',118,15930],
+  ['Set 6',85,12070],
+  ['雞肉麵包 / Chicken',117,11700],
+  ['Mini 燒肉',180,10080],
+  ['Set 3',93,10974],
+  ['Mini 烤肉',122,8784],
+  ['Set 9',27,2565],
+  ['Set 2',23,2040],
+  ['Set 7',29,2233],
+  ['Set 11',27,2700],
+  ['Set 8',20,1760],
+  ['Set 10',16,1584],
+  ['Mini 雙層烤肉',78,6104],
+  ['Mini雞肉',74,5032],
+  ['Mini 綜合麵包',72,5688],
+  ['火腿麵包 / Ham',38,3040],
+  ['Mini 火腿麵包',16,896],
+  ['加 起司 Cheese',42,630],
+  ['加 雞肉 Chicken',17,425],
+  ['加 烤肉 Grilled Meat',9,225],
+  ['加 燒肉 Braised Pork',7,140],
+  ['加 火腿 Ham',2,40],
+  ['越南咖啡',7,336],
+  ['可樂 Cocacola',1,37],
+  ['豆漿 Soy Milk',1,37],
+  ['麵包',4,150],
+  ['Th',1,30],
+];
+
+const fmt = n => n == null ? '—' : '$' + Math.round(n).toLocaleString();
+const pct = (a,b) => b ? (a/b*100).toFixed(1)+'%' : '—';
+
+let currentMonth = 5;
+
+// ── Nav date ──
+document.getElementById('navDate').textContent = new Date().toLocaleDateString('zh-TW');
+
+// ── Page switching ──
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── Month navigation ──
+function changeMonth(dir) {
+  currentMonth = Math.max(0, Math.min(6, currentMonth + dir));
+  document.getElementById('monthSelect').value = currentMonth;
+  updateOverview();
+}
+function selectMonth(val) {
+  currentMonth = parseInt(val);
+  updateOverview();
+}
+
+// ── Update overview ──
+function updateOverview() {
+  const d = DATA[currentMonth];
+  const prev = currentMonth > 0 ? DATA[currentMonth-1] : null;
+  document.getElementById('selectedMonthLabel').textContent = MONTH_LABELS[currentMonth];
+
+  const profit = d.food != null && d.salary != null ? d.revenue - d.food - d.salary : null;
+  const margin = profit != null ? (profit/d.revenue*100).toFixed(1) : null;
+
+  document.getElementById('kpi-revenue').textContent = fmt(d.revenue);
+  document.getElementById('kpi-food').textContent = fmt(d.food);
+  document.getElementById('kpi-salary').textContent = fmt(d.salary);
+  document.getElementById('kpi-profit').textContent = fmt(profit);
+
+  // Changes
+  const revChange = prev ? ((d.revenue - prev.revenue)/prev.revenue*100).toFixed(1) : null;
+  const revEl = document.getElementById('kpi-revenue-change');
+  if (revChange) { revEl.textContent = (revChange>0?'↑':'↓') + Math.abs(revChange) + '% vs 上月'; revEl.className = 'kpi-change ' + (revChange>0?'up':'down'); }
+  else revEl.textContent = '開幕月';
+
+  document.getElementById('kpi-food-pct').textContent = d.food ? '食材率 ' + pct(d.food, d.revenue) : '資料不足';
+  document.getElementById('kpi-salary-pct').textContent = d.salary ? '薪資率 ' + pct(d.salary, d.revenue) : '資料不足';
+  document.getElementById('kpi-margin').textContent = margin ? '毛利率 ' + margin + '%' : '資料不足';
+
+  // Legend
+  document.getElementById('leg-rev').textContent = fmt(d.revenue);
+  document.getElementById('leg-food').textContent = fmt(d.food);
+  document.getElementById('leg-sal').textContent = fmt(d.salary);
+  document.getElementById('leg-profit').textContent = fmt(profit);
+  document.getElementById('donut-pct').textContent = margin ? margin + '%' : '—';
+
+  // Donut
+  const circ = 2 * Math.PI * 42;
+  const foodPct = d.food ? d.food / d.revenue : 0;
+  const salPct = d.salary ? d.salary / d.revenue : 0;
+  const foodDash = circ * foodPct;
+  const salDash = circ * salPct;
+  document.getElementById('donut-food').style.strokeDashoffset = circ - foodDash;
+  document.getElementById('donut-food').style.strokeDasharray = foodDash + ' ' + (circ - foodDash);
+  document.getElementById('donut-salary').style.strokeDashoffset = circ - foodDash - salDash;
+  document.getElementById('donut-salary').style.strokeDasharray = salDash + ' ' + (circ - salDash);
+
+  updateBarChart();
+  updateSummaryTable();
+}
+
+// ── Bar chart ──
+function updateBarChart() {
+  const maxRev = Math.max(...DATA.filter(d=>d.revenue).map(d=>d.revenue));
+  const chart = document.getElementById('barChart');
+  chart.innerHTML = '';
+  DATA.forEach((d,i) => {
+    const div = document.createElement('div');
+    div.className = 'bar-group';
+    const rh = Math.round(d.revenue / maxRev * 130);
+    const fh = d.food ? Math.round(d.food / maxRev * 130) : 0;
+    const sh = d.salary ? Math.round(d.salary / maxRev * 130) : 0;
+    div.innerHTML = `
+      <div class="bar-wrap">
+        <div class="bar bar-revenue" style="height:${rh}px" title="${MONTHS[i]} 業績 ${fmt(d.revenue)}"></div>
+        ${fh ? `<div class="bar bar-cost" style="height:${fh}px" title="${MONTHS[i]} 食材 ${fmt(d.food)}"></div>` : ''}
+        ${sh ? `<div class="bar bar-salary" style="height:${sh}px" title="${MONTHS[i]} 薪資 ${fmt(d.salary)}"></div>` : ''}
+      </div>
+      <div class="bar-label" style="${i===currentMonth?'color:var(--accent);font-weight:600;':''}">${MONTHS[i]}</div>
+    `;
+    chart.appendChild(div);
+  });
+}
+
+// ── Summary table ──
+function updateSummaryTable() {
+  const tb = document.getElementById('summaryTable');
+  tb.innerHTML = '';
+  DATA.forEach((d,i) => {
+    const profit = d.food != null && d.salary != null ? d.revenue - d.food - d.salary : null;
+    const margin = profit != null ? (profit/d.revenue*100).toFixed(1) : null;
+    const active = i === currentMonth;
+    tb.innerHTML += `<tr style="${active?'background:rgba(232,160,69,0.06);':''}">
+      <td class="L" style="${active?'color:var(--accent);font-weight:600;':''}">${MONTH_LABELS[i]}</td>
+      <td>${fmt(d.revenue)}</td>
+      <td>${fmt(d.food)}</td>
+      <td style="color:var(--accent2);">${d.food ? pct(d.food,d.revenue) : '—'}</td>
+      <td>${fmt(d.salary)}</td>
+      <td style="color:#a78bfa;">${d.salary ? pct(d.salary,d.revenue) : '—'}</td>
+      <td style="color:${profit>0?'var(--green)':'var(--red)'};">${fmt(profit)}</td>
+      <td style="color:${margin>20?'var(--green)':margin>0?'var(--accent)':'var(--red)'};">${margin ? margin+'%' : '—'}</td>
+      <td><span class="badge ${d.note?'badge-amber':'badge-blue'}">${d.note||'—'}</span></td>
+    </tr>`;
+  });
+}
+
+// ── Products table ──
+function buildProducts() {
+  const total = 241723;
+  const sorted = [...PRODUCTS].sort((a,b)=>b[2]-a[2]);
+  const tb = document.getElementById('productTable');
+  sorted.forEach((p,i) => {
+    const barW = Math.round(p[2]/sorted[0][2]*80);
+    tb.innerHTML += `<tr>
+      <td class="L" style="color:var(--muted);font-size:10px;">${i+1}</td>
+      <td class="L name">${p[0]}</td>
+      <td>${p[1].toLocaleString()}</td>
+      <td>${fmt(p[2])}</td>
+      <td><div style="display:flex;align-items:center;gap:6px;"><div style="width:${barW}px;height:4px;background:var(--accent);border-radius:2px;opacity:0.7;"></div><span style="font-size:10px;color:var(--muted);">${pct(p[2],total)}</span></div></td>
+    </tr>`;
+  });
+}
+
+// ── Init ──
+updateOverview();
+buildProducts();
+</script>
+</body>
+</html>
