@@ -318,11 +318,12 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
     </div>
     <table id="inv-table" style="display:none;">
       <thead><tr>
-        <th class="L" style="width:40px">#</th>
+        <th class="L" style="width:30px">#</th>
         <th class="L">日期</th>
         <th class="L">時間</th>
         <th class="L">傳送者</th>
-        <th style="width:80px">金額</th>
+        <th style="width:100px">金額</th>
+        <th style="width:120px">品項類別</th>
         <th class="L">備注</th>
         <th class="L">照片</th>
       </tr></thead>
@@ -638,6 +639,9 @@ function buildProducts() {
 
 // ── Load invoices from Google Sheets ──
 const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhrTVj6ZRhhNafyDDqkoHcB9C7pgF-b7YcZwWDINKL8yElLH45lptTwigLKF-N0gtiwBOPHNsqCueF/pub?gid=390599286&single=true&output=csv';
+const GAS_URL   = 'https://script.google.com/macros/s/AKfycby2jXOcndmV6xsbhTSEGweLduhNY_6V4cgmIUxMaUfHbmuGni6hHpS93W-cLzofLoW8AQ/exec';
+
+const CATEGORIES = ['','麵包/法棍','肉類','蔬菜/配料','醬料/調味','飲品','包材','乳製品','其他'];
 
 function parseCSV(text) {
   const lines = text.trim().split('\n');
@@ -657,6 +661,25 @@ function parseCSV(text) {
   });
 }
 
+// 儲存變更到 Google Sheets
+function saveRow(rowNum, field, value) {
+  const btn = document.getElementById('save-'+rowNum);
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+
+  const params = new URLSearchParams({ action:'update', row: rowNum+1 }); // +1 for header
+  if (field === 'amount')   params.set('amount', value);
+  if (field === 'category') params.set('category', value);
+  if (field === 'note')     params.set('note', value);
+
+  fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
+    .then(() => {
+      if (btn) { btn.textContent = '✓'; btn.style.color='var(--green)'; setTimeout(()=>{ btn.textContent='儲存'; btn.style.color=''; btn.disabled=false; },2000); }
+    })
+    .catch(() => {
+      if (btn) { btn.textContent = '✗'; btn.style.color='var(--red)'; btn.disabled=false; }
+    });
+}
+
 async function loadInvoices() {
   document.getElementById('inv-loading').style.display = 'block';
   document.getElementById('inv-table').style.display = 'none';
@@ -673,35 +696,71 @@ async function loadInvoices() {
       return;
     }
 
-    // Current month
+    // KPIs
     const now = new Date();
     const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
     const monthRows = rows.filter(r => r['月份'] === thisMonth);
-
-    // KPIs
     document.getElementById('inv-count').textContent = monthRows.length;
     document.getElementById('inv-month').textContent = thisMonth + ' 本月';
     const totalAmt = monthRows.reduce((s,r) => s + (parseFloat(r['金額'])||0), 0);
-    document.getElementById('inv-total').textContent = totalAmt ? '$' + totalAmt.toLocaleString() : '待填入';
+    document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
     const latest = rows[rows.length-1];
     document.getElementById('inv-latest').textContent = latest['日期'] ? latest['日期'].slice(5) : '—';
     document.getElementById('inv-who').textContent = latest['傳送者'] || '—';
     document.getElementById('inv-updated').textContent = '最後更新：' + new Date().toLocaleTimeString('zh-TW');
 
-    // Table — show newest first
+    // Table
     const tbody = document.getElementById('inv-tbody');
     tbody.innerHTML = '';
     [...rows].reverse().forEach((r, i) => {
-      const amt = parseFloat(r['金額']);
+      const realRow = rows.length - i; // 1-based data row index (for GAS row = realRow+1)
+      const gasRow  = realRow + 1;     // +1 for header row in sheet
+      const amt     = parseFloat(r['金額']);
       const driveUrl = r['Drive連結'] || '';
-      tbody.innerHTML += `<tr>
-        <td class="L" style="color:var(--muted);font-size:10px;">${rows.length - i}</td>
+      const curCat  = r['店家'] || '';  // reusing 店家 col as category for now
+      const curNote = r['發票日期'] || '';
+
+      // Category dropdown options
+      const catOpts = CATEGORIES.map(c =>
+        `<option value="${c}" ${c===curCat?'selected':''}>${c||'— 選擇品項 —'}</option>`
+      ).join('');
+
+      tbody.innerHTML += `<tr id="row-${gasRow}">
+        <td class="L" style="color:var(--muted);font-size:10px;">${realRow}</td>
         <td class="L">${r['日期']||'—'}</td>
         <td class="L" style="color:var(--muted);font-size:11px;">${r['時間']||'—'}</td>
         <td class="L">${r['傳送者']||'—'}</td>
-        <td>${amt ? '$'+amt.toLocaleString() : '<span style="color:var(--muted);font-size:10px;">待填</span>'}</td>
-        <td class="L" style="color:var(--muted);font-size:11px;">${r['備注']||'—'}</td>
-        <td class="L">${driveUrl ? `<a href="${driveUrl}" target="_blank" style="color:var(--accent2);font-size:11px;text-decoration:none;">📷 查看</a>` : '—'}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="color:var(--muted);font-size:10px;">$</span>
+            <input
+              id="amt-${gasRow}"
+              type="number"
+              value="${amt||''}"
+              placeholder="填入"
+              onchange="saveRow(${gasRow},'amount',this.value)"
+              style="width:70px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"
+            />
+          </div>
+        </td>
+        <td>
+          <select
+            onchange="saveRow(${gasRow},'category',this.value)"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;cursor:pointer;max-width:110px;"
+          >${catOpts}</select>
+        </td>
+        <td class="L">
+          <input
+            type="text"
+            value="${r['備注']||''}"
+            placeholder="備注"
+            onchange="saveRow(${gasRow},'note',this.value)"
+            style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"
+          />
+        </td>
+        <td class="L">
+          ${driveUrl ? `<a href="${driveUrl}" target="_blank" style="color:var(--accent2);font-size:11px;text-decoration:none;">📷 查看</a>` : '—'}
+        </td>
       </tr>`;
     });
 
