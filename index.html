@@ -640,19 +640,28 @@ function buildProducts() {
 // ── Load invoices from Google Sheets ──
 const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhrTVj6ZRhhNafyDDqkoHcB9C7pgF-b7YcZwWDINKL8yElLH45lptTwigLKF-N0gtiwBOPHNsqCueF/pub?gid=390599286&single=true&output=csv';
 const GAS_URL   = 'https://script.google.com/macros/s/AKfycby2jXOcndmV6xsbhTSEGweLduhNY_6V4cgmIUxMaUfHbmuGni6hHpS93W-cLzofLoW8AQ/exec';
-
 const CATEGORIES = ['','麵包/法棍','肉類','蔬菜/配料','醬料/調味','飲品','包材','乳製品','其他'];
+
+// 用 sessionStorage 暫存本頁填入的值，重新載入前不消失
+function getEdits() {
+  try { return JSON.parse(sessionStorage.getItem('inv_edits') || '{}'); } catch(e) { return {}; }
+}
+function saveEdit(key, field, value) {
+  const edits = getEdits();
+  if (!edits[key]) edits[key] = {};
+  edits[key][field] = value;
+  sessionStorage.setItem('inv_edits', JSON.stringify(edits));
+}
 
 function parseCSV(text) {
   const lines = text.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
   return lines.slice(1).map(line => {
-    const vals = [];
-    let cur = '', inQ = false;
+    const vals = []; let cur = '', inQ = false;
     for (let c of line) {
-      if (c === '"') inQ = !inQ;
-      else if (c === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
-      else cur += c;
+      if (c==='"') inQ=!inQ;
+      else if (c===',' && !inQ) { vals.push(cur.trim()); cur=''; }
+      else cur+=c;
     }
     vals.push(cur.trim());
     const obj = {};
@@ -661,22 +670,24 @@ function parseCSV(text) {
   });
 }
 
-// 儲存變更到 Google Sheets
-function saveRow(rowNum, field, value) {
-  const btn = document.getElementById('save-'+rowNum);
-  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+function saveField(key, gasRow, field, value) {
+  // 1. 立刻存到 sessionStorage（重新載入前不消失）
+  saveEdit(key, field, value);
 
-  const params = new URLSearchParams({ action:'update', row: rowNum+1 }); // +1 for header
-  if (field === 'amount')   params.set('amount', value);
-  if (field === 'category') params.set('category', value);
-  if (field === 'note')     params.set('note', value);
+  // 2. 非同步寫回 Google Sheets
+  const ind = document.getElementById('ind-'+key);
+  if (ind) { ind.textContent='⏳'; ind.style.color='var(--muted)'; ind.style.opacity='1'; }
+
+  const params = new URLSearchParams({ action:'update', row: gasRow });
+  params.set(field === 'amount' ? 'amount' : field === 'category' ? 'category' : 'note', value);
 
   fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
-    .then(() => {
-      if (btn) { btn.textContent = '✓'; btn.style.color='var(--green)'; setTimeout(()=>{ btn.textContent='儲存'; btn.style.color=''; btn.disabled=false; },2000); }
-    })
-    .catch(() => {
-      if (btn) { btn.textContent = '✗'; btn.style.color='var(--red)'; btn.disabled=false; }
+    .finally(() => {
+      if (ind) {
+        ind.textContent = '✓ 已儲存';
+        ind.style.color = 'var(--green)';
+        setTimeout(() => { ind.style.opacity='0'; }, 2500);
+      }
     });
 }
 
@@ -686,9 +697,10 @@ async function loadInvoices() {
   document.getElementById('inv-empty').style.display = 'none';
 
   try {
-    const res = await fetch(SHEET_CSV);
+    const res  = await fetch(SHEET_CSV + '&cachebust=' + Date.now());
     const text = await res.text();
     const rows = parseCSV(text).filter(r => r['日期']);
+    const edits = getEdits();
 
     if (!rows.length) {
       document.getElementById('inv-loading').style.display = 'none';
@@ -702,61 +714,64 @@ async function loadInvoices() {
     const monthRows = rows.filter(r => r['月份'] === thisMonth);
     document.getElementById('inv-count').textContent = monthRows.length;
     document.getElementById('inv-month').textContent = thisMonth + ' 本月';
-    const totalAmt = monthRows.reduce((s,r) => s + (parseFloat(r['金額'])||0), 0);
+
+    // 合計：優先用 sessionStorage 暫存值，否則用 Sheets 值
+    let totalAmt = 0;
+    monthRows.forEach((r, idx) => {
+      const key = r['日期'] + '_' + r['時間'];
+      const cached = edits[key]?.amount;
+      totalAmt += parseFloat(cached !== undefined ? cached : r['金額']) || 0;
+    });
     document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
+
     const latest = rows[rows.length-1];
-    document.getElementById('inv-latest').textContent = latest['日期'] ? latest['日期'].slice(5) : '—';
+    document.getElementById('inv-latest').textContent = latest['日期']?.slice(5) || '—';
     document.getElementById('inv-who').textContent = latest['傳送者'] || '—';
     document.getElementById('inv-updated').textContent = '最後更新：' + new Date().toLocaleTimeString('zh-TW');
 
-    // Table
+    // Table（最新在前）
     const tbody = document.getElementById('inv-tbody');
     tbody.innerHTML = '';
     [...rows].reverse().forEach((r, i) => {
-      const realRow = rows.length - i; // 1-based data row index (for GAS row = realRow+1)
-      const gasRow  = realRow + 1;     // +1 for header row in sheet
-      const amt     = parseFloat(r['金額']);
-      const driveUrl = r['Drive連結'] || '';
-      const curCat  = r['店家'] || '';  // reusing 店家 col as category for now
-      const curNote = r['發票日期'] || '';
+      const gasRow   = rows.length - i + 1;  // sheet row (+1 for header)
+      const key      = r['日期'] + '_' + r['時間'];
+      const cached   = edits[key] || {};
 
-      // Category dropdown options
+      // 優先用暫存值，沒有才用 Sheets 的值
+      const amt  = cached.amount   !== undefined ? cached.amount   : r['金額']     || '';
+      const cat  = cached.category !== undefined ? cached.category : r['品項類別'] || '';
+      const note = cached.note     !== undefined ? cached.note     : r['備注']     || '';
+      const driveUrl = r['Drive連結'] || '';
+
       const catOpts = CATEGORIES.map(c =>
-        `<option value="${c}" ${c===curCat?'selected':''}>${c||'— 選擇品項 —'}</option>`
+        `<option value="${c}" ${c===cat?'selected':''}>${c||'— 選擇品項 —'}</option>`
       ).join('');
 
-      tbody.innerHTML += `<tr id="row-${gasRow}">
-        <td class="L" style="color:var(--muted);font-size:10px;">${realRow}</td>
+      tbody.innerHTML += `<tr>
+        <td class="L" style="color:var(--muted);font-size:10px;">${rows.length - i}
+          <span id="ind-${key}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
+        </td>
         <td class="L">${r['日期']||'—'}</td>
         <td class="L" style="color:var(--muted);font-size:11px;">${r['時間']||'—'}</td>
         <td class="L">${r['傳送者']||'—'}</td>
         <td>
-          <div style="display:flex;align-items:center;gap:4px;">
+          <div style="display:flex;align-items:center;gap:3px;">
             <span style="color:var(--muted);font-size:10px;">$</span>
-            <input
-              id="amt-${gasRow}"
-              type="number"
-              value="${amt||''}"
-              placeholder="填入"
-              onchange="saveRow(${gasRow},'amount',this.value)"
-              style="width:70px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"
-            />
+            <input type="number" value="${amt}" placeholder="填入"
+              onchange="saveField('${key}',${gasRow},'amount',this.value)"
+              style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
           </div>
         </td>
         <td>
-          <select
-            onchange="saveRow(${gasRow},'category',this.value)"
-            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;cursor:pointer;max-width:110px;"
-          >${catOpts}</select>
+          <select onchange="saveField('${key}',${gasRow},'category',this.value)"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;cursor:pointer;max-width:115px;">
+            ${catOpts}
+          </select>
         </td>
         <td class="L">
-          <input
-            type="text"
-            value="${r['備注']||''}"
-            placeholder="備注"
-            onchange="saveRow(${gasRow},'note',this.value)"
-            style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"
-          />
+          <input type="text" value="${note}" placeholder="備注"
+            onchange="saveField('${key}',${gasRow},'note',this.value)"
+            style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
         </td>
         <td class="L">
           ${driveUrl ? `<a href="${driveUrl}" target="_blank" style="color:var(--accent2);font-size:11px;text-decoration:none;">📷 查看</a>` : '—'}
@@ -768,7 +783,8 @@ async function loadInvoices() {
     document.getElementById('inv-table').style.display = 'table';
 
   } catch(e) {
-    document.getElementById('inv-loading').innerHTML = '⚠️ 載入失敗，請確認試算表已公開<br><span style="font-size:11px;">'+e.message+'</span>';
+    document.getElementById('inv-loading').innerHTML =
+      '⚠️ 載入失敗<br><span style="font-size:11px;">'+e.message+'</span>';
   }
 }
 
