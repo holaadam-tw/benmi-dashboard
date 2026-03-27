@@ -319,9 +319,9 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
     <table id="inv-table" style="display:none;">
       <thead><tr>
         <th class="L" style="width:30px">#</th>
-        <th class="L">日期</th>
-        <th class="L">時間</th>
+        <th class="L">上傳時間</th>
         <th class="L">傳送者</th>
+        <th style="width:110px">購買日期</th>
         <th style="width:100px">金額</th>
         <th style="width:120px">品項類別</th>
         <th class="L">備注</th>
@@ -679,7 +679,7 @@ function saveField(key, gasRow, field, value) {
   if (ind) { ind.textContent='⏳'; ind.style.color='var(--muted)'; ind.style.opacity='1'; }
 
   const params = new URLSearchParams({ action:'update', row: gasRow });
-  params.set(field === 'amount' ? 'amount' : field === 'category' ? 'category' : 'note', value);
+  params.set(field === 'amount' ? 'amount' : field === 'category' ? 'category' : field === 'buydate' ? 'buydate' : 'note', value);
 
   fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
     .finally(() => {
@@ -738,9 +738,10 @@ async function loadInvoices() {
       const cached   = edits[key] || {};
 
       // 優先用暫存值，沒有才用 Sheets 的值
-      const amt  = cached.amount   !== undefined ? cached.amount   : r['金額']     || '';
-      const cat  = cached.category !== undefined ? cached.category : r['品項類別'] || '';
-      const note = cached.note     !== undefined ? cached.note     : r['備注']     || '';
+      const amt      = cached.amount   !== undefined ? cached.amount   : r['金額']     || '';
+      const cat      = cached.category !== undefined ? cached.category : r['品項類別'] || '';
+      const note     = cached.note     !== undefined ? cached.note     : r['備注']     || '';
+      const buyDate  = cached.buydate  !== undefined ? cached.buydate  : r['發票日期'] || '';
       const driveUrl = r['Drive連結'] || '';
 
       const catOpts = CATEGORIES.map(c =>
@@ -751,9 +752,13 @@ async function loadInvoices() {
         <td class="L" style="color:var(--muted);font-size:10px;">${rows.length - i}
           <span id="ind-${key}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
         </td>
-        <td class="L">${r['日期']||'—'}</td>
-        <td class="L" style="color:var(--muted);font-size:11px;">${r['時間']||'—'}</td>
+        <td class="L" style="font-size:11px;">${r['日期']||'—'} ${r['時間']||''}</td>
         <td class="L">${r['傳送者']||'—'}</td>
+        <td>
+          <input type="date" value="${buyDate}"
+            onchange="saveField('${key}',${gasRow},'buydate',this.value)"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;width:130px;"/>
+        </td>
         <td>
           <div style="display:flex;align-items:center;gap:3px;">
             <span style="color:var(--muted);font-size:10px;">$</span>
