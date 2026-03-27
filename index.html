@@ -278,9 +278,23 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;">
     <div>
       <div style="font-size:22px;font-weight:700;">採購發票記錄</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:2px;">LINE Bot 自動記錄 · Google Sheets 即時同步</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;">LINE Bot 自動記錄 · 支援直接上傳 · Google Sheets 即時同步</div>
     </div>
     <button onclick="loadInvoices()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--sans);">↻ 重新載入</button>
+  </div>
+
+  <!-- Upload zone -->
+  <div id="upload-zone"
+    ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
+    ondragleave="this.style.borderColor='var(--border)'"
+    ondrop="handleDrop(event)"
+    onclick="document.getElementById('file-input').click()"
+    style="border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;margin-bottom:14px;transition:border-color 0.2s;background:var(--surface);">
+    <input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
+    <div style="font-size:28px;margin-bottom:8px;">📸</div>
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">拖曳圖片到此處，或點擊選擇</div>
+    <div style="font-size:11px;color:var(--muted);">支援 JPG、PNG · 自動去重複 · 直接上傳到 Google Drive</div>
+    <div id="upload-status" style="margin-top:10px;font-size:12px;min-height:18px;"></div>
   </div>
 
   <!-- KPI row -->
@@ -310,7 +324,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   <!-- Live invoice table -->
   <div class="table-box">
     <div class="table-header">
-      <div class="table-title">發票記錄（LINE Bot 即時）</div>
+      <div class="table-title">發票記錄（即時）</div>
       <div style="font-size:10px;color:var(--muted);" id="inv-updated">來源：Google Sheets</div>
     </div>
     <div id="inv-loading" style="padding:40px;text-align:center;color:var(--muted);font-size:13px;">
@@ -319,20 +333,29 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
     <table id="inv-table" style="display:none;">
       <thead><tr>
         <th class="L" style="width:30px">#</th>
+        <th class="L" style="width:50px">預覽</th>
         <th class="L">上傳時間</th>
         <th class="L">傳送者</th>
         <th style="width:110px">購買日期</th>
         <th style="width:100px">金額</th>
         <th style="width:120px">品項類別</th>
         <th class="L">備注</th>
-        <th class="L">照片</th>
       </tr></thead>
       <tbody id="inv-tbody"></tbody>
     </table>
     <div id="inv-empty" style="display:none;padding:40px;text-align:center;color:var(--muted);font-size:13px;">
       📭 目前沒有發票記錄<br>
-      <span style="font-size:11px;margin-top:6px;display:block;">在 LINE 群組傳圖片，Bot 會自動記錄</span>
+      <span style="font-size:11px;margin-top:6px;display:block;">在 LINE 群組傳圖片或直接上傳</span>
     </div>
+  </div>
+</div>
+
+<!-- 燈箱預覽 -->
+<div id="lightbox" onclick="closeLightbox()" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out;">
+  <div onclick="event.stopPropagation()" style="max-width:90vw;max-height:90vh;position:relative;">
+    <img id="lightbox-img" style="max-width:90vw;max-height:85vh;border-radius:8px;display:block;" />
+    <div id="lightbox-caption" style="text-align:center;color:#fff;font-size:12px;margin-top:8px;opacity:0.7;"></div>
+    <button onclick="closeLightbox()" style="position:absolute;top:-12px;right:-12px;background:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:28px;text-align:center;">✕</button>
   </div>
 </div>
 
@@ -641,6 +664,242 @@ function buildProducts() {
 const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhrTVj6ZRhhNafyDDqkoHcB9C7pgF-b7YcZwWDINKL8yElLH45lptTwigLKF-N0gtiwBOPHNsqCueF/pub?gid=390599286&single=true&output=csv';
 const GAS_URL   = 'https://script.google.com/macros/s/AKfycby2jXOcndmV6xsbhTSEGweLduhNY_6V4cgmIUxMaUfHbmuGni6hHpS93W-cLzofLoW8AQ/exec';
 const CATEGORIES = ['','麵包/法棍','肉類','蔬菜/配料','醬料/調味','飲品','包材','乳製品','其他'];
+
+// ── sessionStorage 暫存 ──
+function getEdits() {
+  try { return JSON.parse(sessionStorage.getItem('inv_edits') || '{}'); } catch(e) { return {}; }
+}
+function saveEdit(key, field, value) {
+  const edits = getEdits();
+  if (!edits[key]) edits[key] = {};
+  edits[key][field] = value;
+  sessionStorage.setItem('inv_edits', JSON.stringify(edits));
+}
+
+// ── CSV parser ──
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+  return lines.slice(1).map(line => {
+    const vals = []; let cur = '', inQ = false;
+    for (let c of line) {
+      if (c==='"') inQ=!inQ;
+      else if (c===',' && !inQ) { vals.push(cur.trim()); cur=''; }
+      else cur+=c;
+    }
+    vals.push(cur.trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = (vals[i]||'').replace(/^"|"$/g,''));
+    return obj;
+  });
+}
+
+// ── 計算圖片 hash（用於去重） ──
+async function computeHash(arrayBuffer) {
+  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+  const hashArray  = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2,'0')).join('').substring(0, 16);
+}
+
+// ── 圖片轉 base64 ──
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ── 上傳處理 ──
+async function uploadFiles(files) {
+  const status = document.getElementById('upload-status');
+  const uploader = '網頁上傳';
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    status.innerHTML = `⏳ 上傳中 (${i+1}/${files.length})：${file.name}`;
+    status.style.color = 'var(--muted)';
+
+    try {
+      // 1. 計算 hash 去重
+      const buf  = await file.arrayBuffer();
+      const hash = await computeHash(buf);
+
+      // 2. 轉 base64
+      const b64  = await fileToBase64(file);
+
+      // 3. 送到 GAS
+      const res  = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source:'dashboard', image:b64, filename:file.name, uploader, hash })
+      });
+      const data = await res.json();
+
+      if (data.status === 'duplicate') {
+        status.innerHTML = `⚠️ 重複：${file.name} 已上傳過`;
+        status.style.color = 'var(--accent)';
+      } else if (data.status === 'ok') {
+        status.innerHTML = `✅ 上傳成功：${file.name}`;
+        status.style.color = 'var(--green)';
+      } else {
+        status.innerHTML = `❌ 失敗：${data.msg || '未知錯誤'}`;
+        status.style.color = 'var(--red)';
+      }
+    } catch(e) {
+      status.innerHTML = `❌ 錯誤：${e.message}`;
+      status.style.color = 'var(--red)';
+    }
+
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  // 上傳完重新載入
+  setTimeout(() => { loadInvoices(); status.innerHTML = ''; }, 1500);
+}
+
+function handleFileSelect(e) { uploadFiles(e.target.files); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').style.borderColor = 'var(--border)';
+  uploadFiles(e.dataTransfer.files);
+}
+
+// ── 燈箱 ──
+function openLightbox(thumbUrl, caption) {
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lightbox-img').src = thumbUrl;
+  document.getElementById('lightbox-caption').textContent = caption;
+  lb.style.display = 'flex';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ── 欄位儲存 ──
+function saveField(key, gasRow, field, value) {
+  saveEdit(key, field, value);
+  const ind = document.getElementById('ind-'+key);
+  if (ind) { ind.textContent='⏳'; ind.style.color='var(--muted)'; ind.style.opacity='1'; }
+  const params = new URLSearchParams({ action:'update', row: gasRow });
+  const fieldMap = { amount:'amount', category:'category', buydate:'buydate', note:'note' };
+  params.set(fieldMap[field] || 'note', value);
+  fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
+    .finally(() => {
+      if (ind) {
+        ind.textContent='✓'; ind.style.color='var(--green)';
+        setTimeout(() => { ind.style.opacity='0'; }, 2500);
+      }
+    });
+}
+
+// ── 載入發票 ──
+async function loadInvoices() {
+  document.getElementById('inv-loading').style.display = 'block';
+  document.getElementById('inv-table').style.display = 'none';
+  document.getElementById('inv-empty').style.display = 'none';
+
+  try {
+    const res  = await fetch(SHEET_CSV + '&t=' + Date.now());
+    const text = await res.text();
+    const rows = parseCSV(text).filter(r => r['日期']);
+    const edits = getEdits();
+
+    if (!rows.length) {
+      document.getElementById('inv-loading').style.display = 'none';
+      document.getElementById('inv-empty').style.display = 'block';
+      return;
+    }
+
+    // KPIs
+    const now = new Date();
+    const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    const monthRows = rows.filter(r => r['月份'] === thisMonth);
+    document.getElementById('inv-count').textContent = monthRows.length;
+    document.getElementById('inv-month').textContent = thisMonth + ' 本月';
+    let totalAmt = 0;
+    monthRows.forEach(r => {
+      const key = r['日期'] + '_' + r['時間'];
+      totalAmt += parseFloat(edits[key]?.amount ?? r['金額']) || 0;
+    });
+    document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
+    const latest = rows[rows.length-1];
+    document.getElementById('inv-latest').textContent = latest['日期']?.slice(5) || '—';
+    document.getElementById('inv-who').textContent = latest['傳送者'] || '—';
+    document.getElementById('inv-updated').textContent = '最後更新：' + new Date().toLocaleTimeString('zh-TW');
+
+    // Table
+    const tbody = document.getElementById('inv-tbody');
+    tbody.innerHTML = '';
+    [...rows].reverse().forEach((r, i) => {
+      const gasRow   = rows.length - i + 1;
+      const key      = r['日期'] + '_' + r['時間'];
+      const cached   = edits[key] || {};
+      const amt      = cached.amount   ?? r['金額']     ?? '';
+      const cat      = cached.category ?? r['品項類別'] ?? '';
+      const note     = cached.note     ?? r['備注']     ?? '';
+      const buyDate  = cached.buydate  ?? r['購買日期'] ?? '';
+      const thumbUrl = r['縮圖連結']   || '';
+      const driveUrl = r['Drive連結']  || '';
+
+      const catOpts = CATEGORIES.map(c =>
+        `<option value="${c}" ${c===cat?'selected':''}>${c||'— 選擇品項 —'}</option>`
+      ).join('');
+
+      // 縮圖格子
+      const thumb = thumbUrl
+        ? `<img src="${thumbUrl}" onclick="openLightbox('${thumbUrl}','${r['日期']} ${r['傳送者']}')"
+            style="width:44px;height:44px;object-fit:cover;border-radius:4px;cursor:zoom-in;border:1px solid var(--border);"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+           <a href="${driveUrl}" target="_blank" style="display:none;width:44px;height:44px;background:var(--surface2);border-radius:4px;align-items:center;justify-content:center;color:var(--accent2);font-size:18px;text-decoration:none;border:1px solid var(--border);">📷</a>`
+        : driveUrl
+          ? `<a href="${driveUrl}" target="_blank" style="display:flex;width:44px;height:44px;background:var(--surface2);border-radius:4px;align-items:center;justify-content:center;color:var(--accent2);font-size:18px;text-decoration:none;border:1px solid var(--border);">📷</a>`
+          : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
+
+      tbody.innerHTML += `<tr>
+        <td class="L" style="color:var(--muted);font-size:10px;">${rows.length-i}
+          <span id="ind-${key}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
+        </td>
+        <td><div style="display:flex;gap:0;">${thumb}</div></td>
+        <td class="L" style="font-size:11px;">${r['日期']||'—'} ${r['時間']||''}</td>
+        <td class="L">${r['傳送者']||'—'}</td>
+        <td>
+          <input type="date" value="${buyDate}"
+            onchange="saveField('${key}',${gasRow},'buydate',this.value)"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;width:126px;"/>
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;gap:3px;">
+            <span style="color:var(--muted);font-size:10px;">$</span>
+            <input type="number" value="${amt}" placeholder="填入"
+              onchange="saveField('${key}',${gasRow},'amount',this.value)"
+              style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
+          </div>
+        </td>
+        <td>
+          <select onchange="saveField('${key}',${gasRow},'category',this.value)"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;cursor:pointer;max-width:115px;">
+            ${catOpts}
+          </select>
+        </td>
+        <td class="L">
+          <input type="text" value="${note}" placeholder="備注"
+            onchange="saveField('${key}',${gasRow},'note',this.value)"
+            style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
+        </td>
+      </tr>`;
+    });
+
+    document.getElementById('inv-loading').style.display = 'none';
+    document.getElementById('inv-table').style.display = 'table';
+
+  } catch(e) {
+    document.getElementById('inv-loading').innerHTML =
+      '⚠️ 載入失敗<br><span style="font-size:11px;">'+e.message+'</span>';
+  }
+}
 
 // 用 sessionStorage 暫存本頁填入的值，重新載入前不消失
 function getEdits() {
