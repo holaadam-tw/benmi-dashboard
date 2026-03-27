@@ -732,7 +732,7 @@ async function uploadFiles(files) {
       // 3. 送到 GAS
       const res  = await fetch(GAS_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ source:'dashboard', image:b64, filename:file.name, uploader, hash })
       });
       const data = await res.json();
