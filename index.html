@@ -152,16 +152,22 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   <div class="nav-logo">
     <div class="mark">本</div>
     <div>
-      <h1>本米麵包 <span>Benmi</span></h1>
+      <h1 id="nav-title">本米麵包 <span>Benmi</span></h1>
     </div>
   </div>
   <div class="nav-tabs">
-    <button class="tab active" onclick="showPage('overview')">月度總覽</button>
-    <button class="tab" onclick="showPage('purchase')">採購發票</button>
-    <button class="tab" onclick="showPage('salary')">薪資工時</button>
-    <button class="tab" onclick="showPage('products')">商品業績</button>
+    <button class="tab active" onclick="showPage('overview')" data-i18n="tab_overview">月度總覽</button>
+    <button class="tab" onclick="showPage('purchase')" data-i18n="tab_purchase">採購發票</button>
+    <button class="tab" onclick="showPage('salary')" data-i18n="tab_salary">薪資工時</button>
+    <button class="tab" onclick="showPage('products')" data-i18n="tab_products">商品業績</button>
   </div>
-  <div class="nav-date" id="navDate"></div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+      <button id="lang-zh" onclick="setLang('zh')" style="background:var(--accent);border:none;color:#000;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:700;">中文</button>
+      <button id="lang-vi" onclick="setLang('vi')" style="background:transparent;border:none;color:var(--muted);padding:5px 10px;cursor:pointer;font-size:11px;font-weight:700;">Tiếng Việt</button>
+    </div>
+    <div class="nav-date" id="navDate"></div>
+  </div>
 </nav>
 
 <main>
@@ -292,8 +298,8 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
     style="border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;margin-bottom:14px;transition:border-color 0.2s;background:var(--surface);">
     <input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
     <div style="font-size:28px;margin-bottom:8px;">📸</div>
-    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">拖曳圖片到此處，或點擊選擇</div>
-    <div style="font-size:11px;color:var(--muted);">支援 JPG、PNG · 自動去重複 · 直接上傳到 Google Drive</div>
+    <div id="upload-drag-text" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">拖曳圖片到此處，或點擊選擇</div>
+    <div id="upload-hint-text" style="font-size:11px;color:var(--muted);">支援 JPG、PNG · 自動去重複 · 直接上傳到 Google Drive</div>
     <div id="upload-status" style="margin-top:10px;font-size:12px;min-height:18px;"></div>
   </div>
 
@@ -1001,19 +1007,27 @@ async function loadInvoices() {
       const thumbUrl = r['縮圖連結']   || '';
       const driveUrl = r['Drive連結']  || '';
 
-      const catOpts = CATEGORIES.map(c =>
-        `<option value="${c}" ${c===cat?'selected':''}>${c||'— 選擇品項 —'}</option>`
-      ).join('');
+      // 從 Drive URL 或縮圖 URL 取得預覽圖
+      function driveThumb(url, fallbackThumb) {
+        if (fallbackThumb) return fallbackThumb;
+        if (!url) return '';
+        const m = url.match(/\/d\/([^\/\?]+)/);
+        return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800' : '';
+      }
+      const previewSrc = driveThumb(driveUrl, thumbUrl);
+      const caption    = (r['日期'] || '') + ' ' + (r['傳送者'] || '');
 
-      // 縮圖格子
-      const thumb = thumbUrl
-        ? `<img src="${thumbUrl}" onclick="openLightbox('${thumbUrl}','${r['日期']} ${r['傳送者']}')"
-            style="width:44px;height:44px;object-fit:cover;border-radius:4px;cursor:zoom-in;border:1px solid var(--border);"
-            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
-           <a href="${driveUrl}" target="_blank" style="display:none;width:44px;height:44px;background:var(--surface2);border-radius:4px;align-items:center;justify-content:center;color:var(--accent2);font-size:18px;text-decoration:none;border:1px solid var(--border);">📷</a>`
-        : driveUrl
-          ? `<a href="${driveUrl}" target="_blank" style="display:flex;width:44px;height:44px;background:var(--surface2);border-radius:4px;align-items:center;justify-content:center;color:var(--accent2);font-size:18px;text-decoration:none;border:1px solid var(--border);">📷</a>`
-          : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
+      // 縮圖格子：永遠用燈箱
+      const thumb = previewSrc
+        ? `<img src="${previewSrc}"
+              onclick="openLightbox('${previewSrc}','${caption}')"
+              style="width:44px;height:44px;object-fit:cover;border-radius:4px;cursor:zoom-in;border:1px solid var(--border);"
+              onerror="this.outerHTML='<div onclick=\\'openLightbox(\\\"${previewSrc}\\\",\\\"${caption}\\\")\\' style=\\'width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--accent2);font-size:18px;cursor:zoom-in;border:1px solid var(--border);\\'>📷</div>'"/>`
+        : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
+
+      const catOpts = CATEGORIES.map(c =>
+        `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`
+      ).join('');
 
       tbody.innerHTML += `<tr>
         <td class="L" style="color:var(--muted);font-size:10px;">${rows.length-i}
@@ -1207,6 +1221,66 @@ async function loadInvoices() {
     document.getElementById('inv-loading').innerHTML =
       '⚠️ 載入失敗<br><span style="font-size:11px;">'+e.message+'</span>';
   }
+}
+
+// ── i18n 語言系統 ──
+const I18N = {
+  zh: {
+    tab_overview:'月度總覽', tab_purchase:'採購發票', tab_salary:'薪資工時', tab_products:'商品業績',
+    select_cat:'— 選擇品項 —',
+    upload_drag:'拖曳圖片到此處，或點擊選擇',
+    upload_hint:'支援 JPG、PNG · 自動去重複 · 直接上傳到 Google Drive',
+    inv_title:'發票記錄（即時）',
+    inv_count:'本月發票張數', inv_total:'本月採購合計', inv_latest:'最近上傳', bot_status:'Bot 狀態',
+    col_thumb:'預覽', col_upload:'上傳時間', col_sender:'傳送者', col_buydate:'購買日期',
+    col_amount:'金額', col_cat:'品項類別', col_note:'備注',
+    kpi_revenue:'POS 業績', kpi_food:'食材成本', kpi_salary:'薪資支出', kpi_profit:'毛利',
+    month_overview:'月度總覽', salary_title:'薪資與工時明細',
+    cat_bread:'麵包/法棍', cat_meat:'肉類', cat_veg:'蔬菜/配料', cat_sauce:'醬料/調味',
+    cat_drink:'飲品', cat_pack:'包材', cat_dairy:'乳製品', cat_other:'其他',
+  },
+  vi: {
+    tab_overview:'Tổng quan', tab_purchase:'Hóa đơn', tab_salary:'Lương & giờ', tab_products:'Doanh thu',
+    select_cat:'— Chọn danh mục —',
+    upload_drag:'Kéo ảnh vào đây hoặc nhấn để chọn',
+    upload_hint:'Hỗ trợ JPG, PNG · Tự động kiểm tra trùng · Upload lên Google Drive',
+    inv_title:'Hóa đơn (cập nhật liên tục)',
+    inv_count:'Số hóa đơn tháng này', inv_total:'Tổng mua tháng này', inv_latest:'Upload gần nhất', bot_status:'Trạng thái Bot',
+    col_thumb:'Xem', col_upload:'Thời gian upload', col_sender:'Người gửi', col_buydate:'Ngày mua',
+    col_amount:'Số tiền', col_cat:'Danh mục', col_note:'Ghi chú',
+    kpi_revenue:'Doanh thu POS', kpi_food:'Chi phí nguyên liệu', kpi_salary:'Chi phí lương', kpi_profit:'Lợi nhuận gộp',
+    month_overview:'Tổng quan tháng', salary_title:'Chi tiết lương & giờ làm',
+    cat_bread:'Bánh mì', cat_meat:'Thịt', cat_veg:'Rau/Gia vị', cat_sauce:'Nước chấm/Sốt',
+    cat_drink:'Đồ uống', cat_pack:'Bao bì', cat_dairy:'Sữa/Phô mai', cat_other:'Khác',
+  }
+};
+
+let currentLang = 'zh';
+function t(key) { return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.zh[key] || key); }
+
+function setLang(lang) {
+  currentLang = lang;
+  // Nav buttons
+  document.getElementById('lang-zh').style.background = lang==='zh' ? 'var(--accent)' : 'transparent';
+  document.getElementById('lang-zh').style.color      = lang==='zh' ? '#000' : 'var(--muted)';
+  document.getElementById('lang-vi').style.background = lang==='vi' ? 'var(--accent)' : 'transparent';
+  document.getElementById('lang-vi').style.color      = lang==='vi' ? '#000' : 'var(--muted)';
+  // Tabs
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (I18N[lang][key]) el.textContent = I18N[lang][key];
+  });
+  // Dynamic labels
+  const els = {
+    'upload-drag-text': t('upload_drag'),
+    'upload-hint-text': t('upload_hint'),
+  };
+  Object.entries(els).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  });
+  // Reload invoices to re-render with new lang
+  loadInvoices();
 }
 
 // ── Init ──
