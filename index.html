@@ -97,8 +97,12 @@ main { padding:28px 32px; max-width:1400px; margin:0 auto; }
 table { width:100%; border-collapse:collapse; }
 th { padding:10px 16px; font-size:10px; font-weight:600; letter-spacing:1px; color:var(--muted); text-transform:uppercase; text-align:right; border-bottom:1px solid var(--border); background:var(--surface2); }
 th.L { text-align:left; }
-td { padding:11px 16px; font-size:12px; border-bottom:1px solid var(--border); text-align:right; font-family:var(--mono); }
+td { padding:11px 16px; font-size:12px; border-bottom:1px solid var(--border); text-align:right; font-family:var(--mono); vertical-align:middle; }
 td.L { text-align:left; font-family:var(--sans); }
+
+/* 發票表格固定欄寬 */
+#inv-table { table-layout:fixed; }
+#inv-table td, #inv-table th { vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 td.name { font-weight:500; }
 tr:last-child td { border-bottom:none; }
 tr:hover td { background:var(--surface2); }
@@ -345,14 +349,14 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
     </div>
     <table id="inv-table" style="display:none;">
       <thead><tr>
-        <th class="L" style="width:30px">#</th>
-        <th class="L" style="width:50px">預覽</th>
-        <th class="L sort-th" onclick="sortInvoices('time')" data-sort="time">上傳時間 <span class="sort-arrow">▼</span></th>
-        <th class="L sort-th" onclick="sortInvoices('sender')" data-sort="sender">傳送者</th>
-        <th class="sort-th" style="width:110px" onclick="sortInvoices('buydate')" data-sort="buydate">購買日期</th>
+        <th class="L" style="width:36px">#</th>
+        <th class="L" style="width:52px">預覽</th>
+        <th class="L sort-th" style="width:140px" onclick="sortInvoices('time')" data-sort="time">上傳時間 <span class="sort-arrow">▼</span></th>
+        <th class="L sort-th" style="width:80px" onclick="sortInvoices('sender')" data-sort="sender">傳送者</th>
+        <th class="sort-th" style="width:130px" onclick="sortInvoices('buydate')" data-sort="buydate">購買日期</th>
         <th class="sort-th" style="width:100px" onclick="sortInvoices('amount')" data-sort="amount">金額</th>
         <th class="sort-th" style="width:120px" onclick="sortInvoices('category')" data-sort="category">品項類別</th>
-        <th class="L">備注</th>
+        <th class="L" style="width:90px">備注</th>
         <th style="width:40px">操作</th>
       </tr></thead>
       <tbody id="inv-tbody"></tbody>
@@ -677,13 +681,29 @@ const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhrTVj6ZRhhN
 const GAS_URL   = 'https://script.google.com/macros/s/AKfycby2jXOcndmV6xsbhTSEGweLduhNY_6V4cgmIUxMaUfHbmuGni6hHpS93W-cLzofLoW8AQ/exec';
 
 // ── sessionStorage 暫存 ──
+// ── 從 Drive URL 抽取 file ID 後 8 碼作為唯一識別 ──
+function getFileId(driveUrl) {
+  if (!driveUrl) return '';
+  const m = driveUrl.match(/\/d\/([^\/\?]+)/);
+  return m ? m[1].slice(-8) : '';
+}
+// 生成每行唯一 key（不隨行號變動）
+function rowUniqueKey(r) {
+  return (r['日期']||'x') + '_' + (r['時間']||'x') + '_' + getFileId(r['Drive連結']);
+}
+
 function getEdits() {
-  try { return JSON.parse(sessionStorage.getItem('inv_edits') || '{}'); } catch(e) { return {}; }
+  try {
+    const data = JSON.parse(sessionStorage.getItem('inv_edits') || '{}');
+    if (data._version !== 2) { sessionStorage.removeItem('inv_edits'); return { _version:2 }; }
+    return data;
+  } catch(e) { return { _version:2 }; }
 }
 function saveEdit(key, field, value) {
   const edits = getEdits();
   if (!edits[key]) edits[key] = {};
   edits[key][field] = value;
+  edits._version = 2;
   sessionStorage.setItem('inv_edits', JSON.stringify(edits));
 }
 
@@ -834,35 +854,32 @@ function saveField(key, gasRow, field, value) {
 }
 
 // ── 刪除行 ──
-function getDeletedRows() {
+function getDeletedKeys() {
   try {
-    const data = JSON.parse(sessionStorage.getItem('inv_deleted') || '{"rows":[],"time":0}');
-    // 超過 10 分鐘自動清除（CSV 快取應已更新）
+    const data = JSON.parse(sessionStorage.getItem('inv_deleted') || '{"keys":[],"time":0}');
     if (Date.now() - (data.time || 0) > 600000) {
       sessionStorage.removeItem('inv_deleted');
       return [];
     }
-    return data.rows || [];
+    return data.keys || [];
   } catch(e) { return []; }
 }
-function markDeleted(gasRow) {
-  const list = getDeletedRows();
-  if (!list.includes(gasRow)) list.push(gasRow);
-  sessionStorage.setItem('inv_deleted', JSON.stringify({ rows: list, time: Date.now() }));
+function markDeleted(uniqueKey) {
+  const list = getDeletedKeys();
+  if (!list.includes(uniqueKey)) list.push(uniqueKey);
+  sessionStorage.setItem('inv_deleted', JSON.stringify({ keys: list, time: Date.now() }));
 }
 
-function deleteRow(gasRow, btn) {
-  if (!confirm('確定刪除第 ' + gasRow + ' 行？此操作無法復原。')) return;
+function deleteRow(gasRow, uniqueKey, btn) {
+  if (!confirm('確定刪除此筆記錄？此操作無法復原。')) return;
 
   const tr = btn.closest('tr');
   tr.style.opacity = '0.4';
   btn.disabled = true;
   btn.textContent = '⏳';
 
-  // 記住已刪除的行（避免 CSV 快取導致重新出現）
-  markDeleted(gasRow);
+  markDeleted(uniqueKey);
 
-  // 呼叫 GAS 刪除
   const params = new URLSearchParams({ action:'delete', row: gasRow });
   fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
     .then(() => {
@@ -1092,7 +1109,6 @@ async function loadInvoices() {
     const res  = await fetch(SHEET_CSV + '&cachebust=' + Date.now());
     const text = await res.text();
     invRows = parseCSV(text).filter(r => r['日期']);
-    const edits = getEdits();
 
     if (!invRows.length) {
       document.getElementById('inv-loading').style.display = 'none';
@@ -1104,21 +1120,16 @@ async function loadInvoices() {
     const now = new Date();
     const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
     const monthRows = invRows.filter(r => r['月份'] === thisMonth);
-    const deletedForCount = getDeletedRows();
-    const activeMonthRows = monthRows.filter(r => {
-      const gi = invRows.indexOf(r) + 2;
-      return !deletedForCount.includes(gi);
-    });
+    const deletedKeys = getDeletedKeys();
+    const activeMonthRows = monthRows.filter(r => !deletedKeys.includes(rowUniqueKey(r)));
     document.getElementById('inv-count').textContent = activeMonthRows.length;
     document.getElementById('inv-month').textContent = thisMonth + ' 本月';
 
     let totalAmt = 0;
-    monthRows.forEach(r => {
-      const origIdx = invRows.indexOf(r);
-      const gasRowNum = origIdx + 2;
-      if (deletedForCount.includes(gasRowNum)) return;
-      const rowKey = 'row_' + gasRowNum;
-      const cached = edits[rowKey]?.amount;
+    const edits = getEdits();
+    activeMonthRows.forEach(r => {
+      const uk = rowUniqueKey(r);
+      const cached = edits[uk]?.amount;
       totalAmt += parseFloat(cached !== undefined ? cached : r['金額']) || 0;
     });
     document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
@@ -1142,18 +1153,18 @@ async function loadInvoices() {
 // ── 渲染表格（排序 + 過濾已刪除） ──
 function renderInvoiceTable() {
   const edits = getEdits();
-  const deletedRows = getDeletedRows();
+  const deletedKeys = getDeletedKeys();
   const tbody = document.getElementById('inv-tbody');
   tbody.innerHTML = '';
 
   const items = invRows.map((r, idx) => ({
-    r, gasRow: idx + 2, origIdx: idx
-  })).filter(item => !deletedRows.includes(item.gasRow));
+    r, gasRow: idx + 2, uk: rowUniqueKey(r)
+  })).filter(item => !deletedKeys.includes(item.uk));
 
   // 排序
   items.sort((a, b) => {
-    const edA = edits['row_' + a.gasRow] || {};
-    const edB = edits['row_' + b.gasRow] || {};
+    const edA = edits[a.uk] || {};
+    const edB = edits[b.uk] || {};
     let va, vb;
     switch (invSort.field) {
       case 'time':
@@ -1186,8 +1197,7 @@ function renderInvoiceTable() {
   });
 
   items.forEach(item => {
-    const r = item.r, gasRow = item.gasRow;
-    const key = 'row_' + gasRow;
+    const r = item.r, gasRow = item.gasRow, key = item.uk;
     const cached = edits[key] || {};
     const amt     = cached.amount   !== undefined ? cached.amount   : r['金額']     || '';
     const cat     = cached.category !== undefined ? cached.category : r['品項類別'] || '';
@@ -1208,17 +1218,18 @@ function renderInvoiceTable() {
       ? `<div onclick="openLightbox('${eLb}','${eCap}')" style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">${previewSrc ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><span style="display:none;font-size:18px;color:var(--accent2);align-items:center;justify-content:center;">📷</span>` : `<span style="font-size:18px;color:var(--accent2);">📷</span>`}</div>`
       : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
     const catOpts = CATEGORIES.map(c => `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`).join('');
+    const eKey = key.replace(/'/g, "\\'");
 
     tbody.innerHTML += `<tr>
       <td class="L" style="color:var(--muted);font-size:10px;">${gasRow-1}<span id="ind-${key}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span></td>
       <td>${thumb}</td>
       <td class="L" style="font-size:11px;">${r['日期']||'—'} ${r['時間']||''}</td>
       <td class="L">${r['傳送者']||'—'}</td>
-      <td><input type="date" value="${buyDate}" onchange="saveField('${key}',${gasRow},'buydate',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;width:130px;"/></td>
-      <td><div style="display:flex;align-items:center;gap:3px;"><span style="color:var(--muted);font-size:10px;">$</span><input type="number" value="${amt}" placeholder="填入" onchange="saveField('${key}',${gasRow},'amount',this.value)" style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/></div></td>
-      <td><select onchange="saveField('${key}',${gasRow},'category',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;cursor:pointer;max-width:115px;">${catOpts}</select></td>
-      <td class="L"><input type="text" value="${note}" placeholder="備注" onchange="saveField('${key}',${gasRow},'note',this.value)" style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/></td>
-      <td><button onclick="deleteRow(${gasRow},this)" title="刪除此行" style="background:transparent;border:1px solid rgba(240,101,101,0.3);color:var(--red);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:12px;opacity:0.5;transition:opacity 0.2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">🗑</button></td>
+      <td><input type="date" value="${buyDate}" onchange="saveField('${eKey}',${gasRow},'buydate',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;width:130px;"/></td>
+      <td><div style="display:flex;align-items:center;gap:3px;"><span style="color:var(--muted);font-size:10px;">$</span><input type="number" value="${amt}" placeholder="填入" onchange="saveField('${eKey}',${gasRow},'amount',this.value)" style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/></div></td>
+      <td><select onchange="saveField('${eKey}',${gasRow},'category',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;cursor:pointer;max-width:115px;">${catOpts}</select></td>
+      <td class="L"><input type="text" value="${note}" placeholder="備注" onchange="saveField('${eKey}',${gasRow},'note',this.value)" style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/></td>
+      <td><button onclick="deleteRow(${gasRow},'${eKey}',this)" title="刪除此行" style="background:transparent;border:1px solid rgba(240,101,101,0.3);color:var(--red);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:12px;opacity:0.5;transition:opacity 0.2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">🗑</button></td>
     </tr>`;
   });
 }
