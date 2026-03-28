@@ -357,26 +357,32 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
 </div>
 
 <!-- 燈箱預覽 -->
+<!-- 燈箱預覽（支援圖片 + Google Drive iframe） -->
 <div id="lightbox" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:9999;flex-direction:column;">
   <!-- 工具列 -->
   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;flex-shrink:0;">
     <div id="lb-caption" style="color:#e8eaf0;font-size:12px;opacity:0.7;"></div>
     <div style="display:flex;gap:8px;align-items:center;">
-      <button onclick="lbZoom(0.8)"  title="縮小" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;">−</button>
-      <span id="lb-zoom-label" style="color:#fff;font-size:11px;min-width:40px;text-align:center;font-family:monospace;">100%</span>
-      <button onclick="lbZoom(1.25)" title="放大" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;">＋</button>
-      <button onclick="lbReset()"   title="重置" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:13px;">⟳</button>
+      <div id="lb-zoom-controls" style="display:flex;gap:8px;align-items:center;">
+        <button onclick="lbZoom(0.8)"  style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;">−</button>
+        <span id="lb-zoom-label" style="color:#fff;font-size:11px;min-width:40px;text-align:center;font-family:monospace;">100%</span>
+        <button onclick="lbZoom(1.25)" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;">＋</button>
+        <button onclick="lbReset()"    style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:13px;">⟳</button>
+      </div>
       <button onclick="closeLightbox()" style="background:rgba(240,101,101,0.8);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;font-weight:700;">✕</button>
     </div>
   </div>
-  <!-- 圖片容器 -->
-  <div id="lb-viewport" style="flex:1;overflow:hidden;position:relative;cursor:grab;user-select:none;">
+  <!-- 圖片模式 -->
+  <div id="lb-viewport" style="flex:1;overflow:hidden;position:relative;cursor:grab;user-select:none;display:none;">
     <img id="lb-img" draggable="false"
-      style="position:absolute;transform-origin:0 0;max-width:none;border-radius:6px;transition:none;"
+      style="position:absolute;transform-origin:0 0;max-width:none;border-radius:6px;"
       onload="lbFitImage()" />
   </div>
-  <!-- 提示 -->
-  <div style="text-align:center;padding:8px;font-size:11px;color:rgba(255,255,255,0.3);flex-shrink:0;">
+  <!-- Drive iframe 模式 -->
+  <div id="lb-iframe-wrap" style="flex:1;padding:0 20px 16px;display:none;">
+    <iframe id="lb-iframe" style="width:100%;height:100%;border:none;border-radius:8px;background:#fff;" allowfullscreen></iframe>
+  </div>
+  <div id="lb-hint" style="text-align:center;padding:6px;font-size:11px;color:rgba(255,255,255,0.3);flex-shrink:0;">
     滾輪縮放 · 拖曳平移 · ESC 關閉
   </div>
 </div>
@@ -833,15 +839,39 @@ function handleDrop(e) {
 }
 
 // ── 燈箱：支援縮放、平移 ──
-let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0, imgW:0, imgH:0 };
+let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0 };
 
 function openLightbox(src, caption) {
   const el = document.getElementById('lightbox');
   document.getElementById('lb-caption').textContent = caption || '';
-  const img = document.getElementById('lb-img');
-  img.src = src;
   el.style.display = 'flex';
-  lb.scale = 1; lb.x = 0; lb.y = 0;
+
+  // 判斷是 Drive 連結還是圖片
+  const isDrive = src && src.includes('drive.google.com');
+
+  if (isDrive) {
+    // 從 Drive URL 取得 file ID → 用 /preview iframe
+    const m = src.match(/\/d\/([^\/\?]+)/);
+    const fileId = m ? m[1] : null;
+    const embedUrl = fileId
+      ? 'https://drive.google.com/file/d/' + fileId + '/preview'
+      : src;
+
+    document.getElementById('lb-viewport').style.display = 'none';
+    document.getElementById('lb-iframe-wrap').style.display = 'block';
+    document.getElementById('lb-zoom-controls').style.display = 'none';
+    document.getElementById('lb-hint').textContent = 'Google Drive 預覽 · ESC 關閉';
+    document.getElementById('lb-iframe').src = embedUrl;
+  } else {
+    // 一般圖片模式
+    document.getElementById('lb-viewport').style.display = 'block';
+    document.getElementById('lb-iframe-wrap').style.display = 'none';
+    document.getElementById('lb-zoom-controls').style.display = 'flex';
+    document.getElementById('lb-hint').textContent = '滾輪縮放 · 拖曳平移 · ESC 關閉';
+    document.getElementById('lb-iframe').src = '';
+    lb.scale = 1; lb.x = 0; lb.y = 0;
+    document.getElementById('lb-img').src = src;
+  }
 }
 
 function lbFitImage() {
@@ -877,6 +907,7 @@ function lbReset() { lbFitImage(); }
 function closeLightbox() {
   document.getElementById('lightbox').style.display = 'none';
   document.getElementById('lb-img').src = '';
+  document.getElementById('lb-iframe').src = '';
 }
 
 // 滑鼠滾輪縮放
@@ -1016,13 +1047,20 @@ async function loadInvoices() {
       }
       const previewSrc = driveThumb(driveUrl, thumbUrl);
       const caption    = (r['日期'] || '') + ' ' + (r['傳送者'] || '');
+      // 點擊永遠用 Drive URL 開燈箱（iframe 預覽，不需公開權限）
+      const lbSrc      = driveUrl || previewSrc;
 
       // 縮圖格子：永遠用燈箱
-      const thumb = previewSrc
-        ? `<img src="${previewSrc}"
-              onclick="openLightbox('${previewSrc}','${caption}')"
-              style="width:44px;height:44px;object-fit:cover;border-radius:4px;cursor:zoom-in;border:1px solid var(--border);"
-              onerror="this.outerHTML='<div onclick=\\'openLightbox(\\\"${previewSrc}\\\",\\\"${caption}\\\")\\' style=\\'width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--accent2);font-size:18px;cursor:zoom-in;border:1px solid var(--border);\\'>📷</div>'"/>`
+      const thumb = lbSrc
+        ? `<div onclick="openLightbox('${lbSrc}','${caption}')"
+              style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
+             ${previewSrc
+               ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;"
+                    onerror="this.style.display='none';this.nextSibling.style.display='flex'"/>
+                  <span style="display:none;font-size:18px;color:var(--accent2);">📷</span>`
+               : `<span style="font-size:18px;color:var(--accent2);">📷</span>`
+             }
+           </div>`
         : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
 
       const catOpts = CATEGORIES.map(c =>
