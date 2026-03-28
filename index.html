@@ -351,11 +351,27 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
 </div>
 
 <!-- 燈箱預覽 -->
-<div id="lightbox" onclick="closeLightbox()" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out;">
-  <div onclick="event.stopPropagation()" style="max-width:90vw;max-height:90vh;position:relative;">
-    <img id="lightbox-img" style="max-width:90vw;max-height:85vh;border-radius:8px;display:block;" />
-    <div id="lightbox-caption" style="text-align:center;color:#fff;font-size:12px;margin-top:8px;opacity:0.7;"></div>
-    <button onclick="closeLightbox()" style="position:absolute;top:-12px;right:-12px;background:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:28px;text-align:center;">✕</button>
+<div id="lightbox" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:9999;flex-direction:column;">
+  <!-- 工具列 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;flex-shrink:0;">
+    <div id="lb-caption" style="color:#e8eaf0;font-size:12px;opacity:0.7;"></div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button onclick="lbZoom(0.8)"  title="縮小" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;">−</button>
+      <span id="lb-zoom-label" style="color:#fff;font-size:11px;min-width:40px;text-align:center;font-family:monospace;">100%</span>
+      <button onclick="lbZoom(1.25)" title="放大" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;">＋</button>
+      <button onclick="lbReset()"   title="重置" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:13px;">⟳</button>
+      <button onclick="closeLightbox()" style="background:rgba(240,101,101,0.8);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;font-weight:700;">✕</button>
+    </div>
+  </div>
+  <!-- 圖片容器 -->
+  <div id="lb-viewport" style="flex:1;overflow:hidden;position:relative;cursor:grab;user-select:none;">
+    <img id="lb-img" draggable="false"
+      style="position:absolute;transform-origin:0 0;max-width:none;border-radius:6px;transition:none;"
+      onload="lbFitImage()" />
+  </div>
+  <!-- 提示 -->
+  <div style="text-align:center;padding:8px;font-size:11px;color:rgba(255,255,255,0.3);flex-shrink:0;">
+    滾輪縮放 · 拖曳平移 · ESC 關閉
   </div>
 </div>
 
@@ -743,6 +759,8 @@ async function uploadFiles(files) {
       } else if (data.status === 'ok') {
         status.innerHTML = `✅ 上傳成功：${file.name}`;
         status.style.color = 'var(--green)';
+        // 立即插入一行到表格頂部，不等 Sheets 更新
+        insertPendingRow(file, data.thumbUrl || '');
       } else {
         status.innerHTML = `❌ 失敗：${data.msg || '未知錯誤'}`;
         status.style.color = 'var(--red)';
@@ -752,11 +770,53 @@ async function uploadFiles(files) {
       status.style.color = 'var(--red)';
     }
 
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 400));
   }
 
-  // 上傳完重新載入
-  setTimeout(() => { loadInvoices(); status.innerHTML = ''; }, 1500);
+  // 上傳全部完成後靜默重新載入（背景同步，不清空已填的值）
+  setTimeout(() => { loadInvoices(); status.innerHTML = ''; }, 3000);
+}
+
+// 上傳成功後立即插入一行（本地預覽，無需等 Sheets）
+function insertPendingRow(file, thumbUrl) {
+  const tbody = document.getElementById('inv-tbody');
+  if (!tbody) return;
+  document.getElementById('inv-table').style.display = 'table';
+  document.getElementById('inv-empty').style.display = 'none';
+
+  const now     = new Date();
+  const dateStr = now.toLocaleDateString('zh-TW', { year:'numeric', month:'2-digit', day:'2-digit' });
+  const timeStr = now.toLocaleTimeString('zh-TW', { hour:'2-digit', minute:'2-digit', hour12:false });
+
+  // 本地預覽縮圖（直接用 FileReader）
+  const reader = new FileReader();
+  reader.onload = () => {
+    const localSrc = reader.result;
+    const thumb = `<img src="${localSrc}"
+      onclick="openLightbox('${localSrc}','${dateStr} 網頁上傳')"
+      style="width:44px;height:44px;object-fit:cover;border-radius:4px;cursor:zoom-in;border:1px solid var(--border);"/>`;
+
+    const tr = document.createElement('tr');
+    tr.style.background = 'rgba(62,207,142,0.06)';
+    tr.innerHTML = `
+      <td class="L" style="color:var(--green);font-size:10px;">新</td>
+      <td><div>${thumb}</div></td>
+      <td class="L" style="font-size:11px;">${dateStr} ${timeStr}</td>
+      <td class="L">網頁上傳</td>
+      <td><div style="display:flex;align-items:center;gap:3px;">
+        <span style="color:var(--muted);font-size:10px;">$</span>
+        <input type="number" placeholder="填入"
+          style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
+      </div></td>
+      <td><select style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;max-width:115px;">
+        ${CATEGORIES.map(c=>`<option>${c||'— 選擇品項 —'}</option>`).join('')}
+      </select></td>
+      <td class="L"><input type="text" placeholder="備注"
+        style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/></td>
+    `;
+    tbody.insertBefore(tr, tbody.firstChild);
+  };
+  reader.readAsDataURL(file);
 }
 
 function handleFileSelect(e) { uploadFiles(e.target.files); }
@@ -766,16 +826,113 @@ function handleDrop(e) {
   uploadFiles(e.dataTransfer.files);
 }
 
-// ── 燈箱 ──
-function openLightbox(thumbUrl, caption) {
-  const lb = document.getElementById('lightbox');
-  document.getElementById('lightbox-img').src = thumbUrl;
-  document.getElementById('lightbox-caption').textContent = caption;
-  lb.style.display = 'flex';
+// ── 燈箱：支援縮放、平移 ──
+let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0, imgW:0, imgH:0 };
+
+function openLightbox(src, caption) {
+  const el = document.getElementById('lightbox');
+  document.getElementById('lb-caption').textContent = caption || '';
+  const img = document.getElementById('lb-img');
+  img.src = src;
+  el.style.display = 'flex';
+  lb.scale = 1; lb.x = 0; lb.y = 0;
 }
+
+function lbFitImage() {
+  const vp  = document.getElementById('lb-viewport');
+  const img = document.getElementById('lb-img');
+  const vpW = vp.clientWidth, vpH = vp.clientHeight;
+  const ratio = Math.min((vpW * 0.92) / img.naturalWidth, (vpH * 0.92) / img.naturalHeight, 1);
+  lb.scale = ratio;
+  lb.x = (vpW - img.naturalWidth  * ratio) / 2;
+  lb.y = (vpH - img.naturalHeight * ratio) / 2;
+  lbApply();
+}
+
+function lbApply() {
+  const img = document.getElementById('lb-img');
+  img.style.transform = `translate(${lb.x}px,${lb.y}px) scale(${lb.scale})`;
+  document.getElementById('lb-zoom-label').textContent = Math.round(lb.scale * 100) + '%';
+}
+
+function lbZoom(factor) {
+  const vp  = document.getElementById('lb-viewport');
+  const cx  = vp.clientWidth / 2, cy = vp.clientHeight / 2;
+  const img = document.getElementById('lb-img');
+  const newScale = Math.max(0.1, Math.min(10, lb.scale * factor));
+  lb.x = cx - (cx - lb.x) * (newScale / lb.scale);
+  lb.y = cy - (cy - lb.y) * (newScale / lb.scale);
+  lb.scale = newScale;
+  lbApply();
+}
+
+function lbReset() { lbFitImage(); }
+
 function closeLightbox() {
   document.getElementById('lightbox').style.display = 'none';
+  document.getElementById('lb-img').src = '';
 }
+
+// 滑鼠滾輪縮放
+document.getElementById('lb-viewport').addEventListener('wheel', e => {
+  e.preventDefault();
+  const vp  = document.getElementById('lb-viewport');
+  const rect = vp.getBoundingClientRect();
+  const mx  = e.clientX - rect.left;
+  const my  = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.15 : 0.87;
+  const newScale = Math.max(0.1, Math.min(10, lb.scale * factor));
+  lb.x = mx - (mx - lb.x) * (newScale / lb.scale);
+  lb.y = my - (my - lb.y) * (newScale / lb.scale);
+  lb.scale = newScale;
+  lbApply();
+}, { passive: false });
+
+// 拖曳平移
+const lbVp = document.getElementById('lb-viewport');
+lbVp.addEventListener('mousedown', e => {
+  lb.dragging = true; lb.startX = e.clientX - lb.x; lb.startY = e.clientY - lb.y;
+  lbVp.style.cursor = 'grabbing';
+});
+lbVp.addEventListener('mousemove', e => {
+  if (!lb.dragging) return;
+  lb.x = e.clientX - lb.startX;
+  lb.y = e.clientY - lb.startY;
+  lbApply();
+});
+lbVp.addEventListener('mouseup',   () => { lb.dragging = false; lbVp.style.cursor = 'grab'; });
+lbVp.addEventListener('mouseleave',() => { lb.dragging = false; lbVp.style.cursor = 'grab'; });
+
+// 觸控支援（手機）
+let lbTouches = [];
+lbVp.addEventListener('touchstart', e => {
+  lbTouches = Array.from(e.touches);
+  if (lbTouches.length === 1) { lb.startX = lbTouches[0].clientX - lb.x; lb.startY = lbTouches[0].clientY - lb.y; }
+}, { passive: true });
+lbVp.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const touches = Array.from(e.touches);
+  if (touches.length === 1) {
+    lb.x = touches[0].clientX - lb.startX;
+    lb.y = touches[0].clientY - lb.startY;
+    lbApply();
+  } else if (touches.length === 2 && lbTouches.length === 2) {
+    const d0 = Math.hypot(lbTouches[0].clientX-lbTouches[1].clientX, lbTouches[0].clientY-lbTouches[1].clientY);
+    const d1 = Math.hypot(touches[0].clientX-touches[1].clientX, touches[0].clientY-touches[1].clientY);
+    const cx  = (touches[0].clientX + touches[1].clientX) / 2;
+    const cy  = (touches[0].clientY + touches[1].clientY) / 2;
+    const vp  = document.getElementById('lb-viewport').getBoundingClientRect();
+    const mx  = cx - vp.left, my = cy - vp.top;
+    const factor = d1 / d0;
+    const newScale = Math.max(0.1, Math.min(10, lb.scale * factor));
+    lb.x = mx - (mx - lb.x) * (newScale / lb.scale);
+    lb.y = my - (my - lb.y) * (newScale / lb.scale);
+    lb.scale = newScale;
+    lbApply();
+    lbTouches = touches;
+  }
+}, { passive: false });
+
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
 // ── 欄位儲存 ──
