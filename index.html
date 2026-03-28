@@ -827,6 +827,23 @@ function saveField(key, gasRow, field, value) {
 }
 
 // ── 刪除行 ──
+function getDeletedRows() {
+  try {
+    const data = JSON.parse(sessionStorage.getItem('inv_deleted') || '{"rows":[],"time":0}');
+    // 超過 10 分鐘自動清除（CSV 快取應已更新）
+    if (Date.now() - (data.time || 0) > 600000) {
+      sessionStorage.removeItem('inv_deleted');
+      return [];
+    }
+    return data.rows || [];
+  } catch(e) { return []; }
+}
+function markDeleted(gasRow) {
+  const list = getDeletedRows();
+  if (!list.includes(gasRow)) list.push(gasRow);
+  sessionStorage.setItem('inv_deleted', JSON.stringify({ rows: list, time: Date.now() }));
+}
+
 function deleteRow(gasRow, btn) {
   if (!confirm('確定刪除第 ' + gasRow + ' 行？此操作無法復原。')) return;
 
@@ -835,7 +852,10 @@ function deleteRow(gasRow, btn) {
   btn.disabled = true;
   btn.textContent = '⏳';
 
-  // 呼叫 GAS 刪除（需要 GAS 端支援 action=delete）
+  // 記住已刪除的行（避免 CSV 快取導致重新出現）
+  markDeleted(gasRow);
+
+  // 呼叫 GAS 刪除
   const params = new URLSearchParams({ action:'delete', row: gasRow });
   fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
     .then(() => {
@@ -847,11 +867,7 @@ function deleteRow(gasRow, btn) {
         requestAnimationFrame(() => {
           tr.style.height = '0';
           tr.style.opacity = '0';
-          setTimeout(() => {
-            tr.remove();
-            // 2秒後重新載入確保同步
-            setTimeout(loadInvoices, 2000);
-          }, 400);
+          setTimeout(() => tr.remove(), 400);
         });
       }, 300);
     })
@@ -1061,14 +1077,22 @@ async function loadInvoices() {
     const now = new Date();
     const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
     const monthRows = rows.filter(r => r['月份'] === thisMonth);
-    document.getElementById('inv-count').textContent = monthRows.length;
+    // 計算時排除已刪除的行
+    const deletedForCount = getDeletedRows();
+    const activeMonthRows = monthRows.filter(r => {
+      const gi = rows.indexOf(r) + 2;
+      return !deletedForCount.includes(gi);
+    });
+    document.getElementById('inv-count').textContent = activeMonthRows.length;
     document.getElementById('inv-month').textContent = thisMonth + ' 本月';
 
     let totalAmt = 0;
+    const deletedForKpi = getDeletedRows();
     monthRows.forEach((r, idx) => {
-      // 找出此行在原始 rows 中的位置，算出 gasRow
       const origIdx = rows.indexOf(r);
-      const rowKey = 'row_' + (origIdx + 2); // +2: header + 0-index
+      const gasRowNum = origIdx + 2;
+      if (deletedForKpi.includes(gasRowNum)) return; // 跳過已刪除
+      const rowKey = 'row_' + gasRowNum;
       const cached = edits[rowKey]?.amount;
       totalAmt += parseFloat(cached !== undefined ? cached : r['金額']) || 0;
     });
@@ -1082,8 +1106,11 @@ async function loadInvoices() {
     // Table（最新在前）
     const tbody = document.getElementById('inv-tbody');
     tbody.innerHTML = '';
+    const deletedRows = getDeletedRows();
     [...rows].reverse().forEach((r, i) => {
       const gasRow   = rows.length - i + 1;
+      // 跳過已刪除的行（CSV 快取可能還沒更新）
+      if (deletedRows.includes(gasRow)) return;
       const key      = 'row_' + gasRow;  // 用行號當 key，保證唯一
       const cached   = edits[key] || {};
 
