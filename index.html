@@ -346,6 +346,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <th style="width:100px">金額</th>
         <th style="width:120px">品項類別</th>
         <th class="L">備注</th>
+        <th style="width:40px">操作</th>
       </tr></thead>
       <tbody id="inv-tbody"></tbody>
     </table>
@@ -825,6 +826,43 @@ function saveField(key, gasRow, field, value) {
     });
 }
 
+// ── 刪除行 ──
+function deleteRow(gasRow, btn) {
+  if (!confirm('確定刪除第 ' + gasRow + ' 行？此操作無法復原。')) return;
+
+  const tr = btn.closest('tr');
+  tr.style.opacity = '0.4';
+  btn.disabled = true;
+  btn.textContent = '⏳';
+
+  // 呼叫 GAS 刪除（需要 GAS 端支援 action=delete）
+  const params = new URLSearchParams({ action:'delete', row: gasRow });
+  fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
+    .then(() => {
+      tr.style.background = 'rgba(240,101,101,0.1)';
+      tr.style.transition = 'all 0.4s';
+      setTimeout(() => {
+        tr.style.height = tr.offsetHeight + 'px';
+        tr.style.overflow = 'hidden';
+        requestAnimationFrame(() => {
+          tr.style.height = '0';
+          tr.style.opacity = '0';
+          setTimeout(() => {
+            tr.remove();
+            // 2秒後重新載入確保同步
+            setTimeout(loadInvoices, 2000);
+          }, 400);
+        });
+      }, 300);
+    })
+    .catch(e => {
+      alert('刪除失敗：' + e.message);
+      tr.style.opacity = '1';
+      btn.disabled = false;
+      btn.textContent = '🗑';
+    });
+}
+
 // ── 浮動小視窗：縮放 + 拖曳移動視窗 ──
 let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0 };
 // 視窗拖曳
@@ -1117,6 +1155,11 @@ async function loadInvoices() {
           <input type="text" value="${note}" placeholder="備注"
             onchange="saveField('${key}',${gasRow},'note',this.value)"
             style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
+        </td>
+        <td>
+          <button onclick="deleteRow(${gasRow},this)" title="刪除此行"
+            style="background:transparent;border:1px solid rgba(240,101,101,0.3);color:var(--red);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:12px;opacity:0.5;transition:opacity 0.2s;"
+            onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">🗑</button>
         </td>
       </tr>`;
     });
