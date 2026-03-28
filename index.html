@@ -1027,9 +1027,11 @@ async function loadInvoices() {
     document.getElementById('inv-month').textContent = thisMonth + ' 本月';
 
     let totalAmt = 0;
-    monthRows.forEach(r => {
-      const key = r['日期'] + '_' + r['時間'];
-      const cached = edits[key]?.amount;
+    monthRows.forEach((r, idx) => {
+      // 找出此行在原始 rows 中的位置，算出 gasRow
+      const origIdx = rows.indexOf(r);
+      const rowKey = 'row_' + (origIdx + 2); // +2: header + 0-index
+      const cached = edits[rowKey]?.amount;
       totalAmt += parseFloat(cached !== undefined ? cached : r['金額']) || 0;
     });
     document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
@@ -1044,7 +1046,7 @@ async function loadInvoices() {
     tbody.innerHTML = '';
     [...rows].reverse().forEach((r, i) => {
       const gasRow   = rows.length - i + 1;
-      const key      = r['日期'] + '_' + r['時間'];
+      const key      = 'row_' + gasRow;  // 用行號當 key，保證唯一
       const cached   = edits[key] || {};
 
       const amt      = cached.amount   !== undefined ? cached.amount   : r['金額']     || '';
