@@ -99,13 +99,13 @@ th { padding:10px 16px; font-size:10px; font-weight:600; letter-spacing:1px; col
 th.L { text-align:left; }
 td { padding:11px 16px; font-size:12px; border-bottom:1px solid var(--border); text-align:right; font-family:var(--mono); vertical-align:middle; }
 td.L { text-align:left; font-family:var(--sans); }
+td.name { font-weight:500; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:var(--surface2); }
 
 /* 發票表格固定欄寬 */
 #inv-table { table-layout:fixed; }
 #inv-table td, #inv-table th { vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-td.name { font-weight:500; }
-tr:last-child td { border-bottom:none; }
-tr:hover td { background:var(--surface2); }
 .badge { display:inline-block; font-size:9px; font-weight:600; padding:2px 6px; border-radius:4px; font-family:var(--mono); }
 .badge-green { background:rgba(62,207,142,0.15); color:var(--green); }
 .badge-red { background:rgba(240,101,101,0.15); color:var(--red); }
@@ -815,13 +815,13 @@ function insertPendingRow(file, thumbUrl) {
       <td><input type="date" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;width:130px;"/></td>
       <td><div style="display:flex;align-items:center;gap:3px;">
         <span style="color:var(--muted);font-size:10px;">$</span>
-        <input type="number" placeholder="填入"
+        <input type="number" placeholder="${t('ph_amount')}"
           style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
       </div></td>
       <td><select style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;max-width:115px;">
-        ${CATEGORIES.map(c=>`<option>${c||'— 選擇品項 —'}</option>`).join('')}
+        ${CATEGORIES.map(c=>`<option>${catLabel(c)}</option>`).join('')}
       </select></td>
-      <td class="L"><input type="text" placeholder="備注"
+      <td class="L"><input type="text" placeholder="${t('ph_note')}"
         style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/></td>
     `;
     tbody.insertBefore(tr, tbody.firstChild);
@@ -1132,7 +1132,7 @@ async function loadInvoices() {
       const cached = edits[uk]?.amount;
       totalAmt += parseFloat(cached !== undefined ? cached : r['金額']) || 0;
     });
-    document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
+    document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : t('ph_pending');
 
     const latest = invRows[invRows.length-1];
     document.getElementById('inv-latest').textContent = latest['日期']?.slice(5) || '—';
@@ -1217,7 +1217,8 @@ function renderInvoiceTable() {
     const thumb = lbSrc
       ? `<div onclick="openLightbox('${eLb}','${eCap}')" style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">${previewSrc ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><span style="display:none;font-size:18px;color:var(--accent2);align-items:center;justify-content:center;">📷</span>` : `<span style="font-size:18px;color:var(--accent2);">📷</span>`}</div>`
       : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
-    const catOpts = CATEGORIES.map(c => `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`).join('');
+    const catOpts = CATEGORIES.map(c => `<option value="${c}" ${c===cat?'selected':''}>${catLabel(c)}</option>`).join('');
+    // key 需要轉義給 HTML onclick
     const eKey = key.replace(/'/g, "\\'");
 
     tbody.innerHTML += `<tr>
@@ -1226,9 +1227,9 @@ function renderInvoiceTable() {
       <td class="L" style="font-size:11px;">${r['日期']||'—'} ${r['時間']||''}</td>
       <td class="L">${r['傳送者']||'—'}</td>
       <td><input type="date" value="${buyDate}" onchange="saveField('${eKey}',${gasRow},'buydate',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;width:130px;"/></td>
-      <td><div style="display:flex;align-items:center;gap:3px;"><span style="color:var(--muted);font-size:10px;">$</span><input type="number" value="${amt}" placeholder="填入" onchange="saveField('${eKey}',${gasRow},'amount',this.value)" style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/></div></td>
+      <td><div style="display:flex;align-items:center;gap:3px;"><span style="color:var(--muted);font-size:10px;">$</span><input type="number" value="${amt}" placeholder="${t('ph_amount')}" onchange="saveField('${eKey}',${gasRow},'amount',this.value)" style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/></div></td>
       <td><select onchange="saveField('${eKey}',${gasRow},'category',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;cursor:pointer;max-width:115px;">${catOpts}</select></td>
-      <td class="L"><input type="text" value="${note}" placeholder="備注" onchange="saveField('${eKey}',${gasRow},'note',this.value)" style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/></td>
+      <td class="L"><input type="text" value="${note}" placeholder="${t('ph_note')}" onchange="saveField('${eKey}',${gasRow},'note',this.value)" style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/></td>
       <td><button onclick="deleteRow(${gasRow},'${eKey}',this)" title="刪除此行" style="background:transparent;border:1px solid rgba(240,101,101,0.3);color:var(--red);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:12px;opacity:0.5;transition:opacity 0.2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">🗑</button></td>
     </tr>`;
   });
@@ -1249,6 +1250,7 @@ const I18N = {
     month_overview:'月度總覽', salary_title:'薪資與工時明細',
     cat_bread:'麵包/法棍', cat_meat:'肉類', cat_veg:'蔬菜/配料', cat_sauce:'醬料/調味',
     cat_drink:'飲品', cat_pack:'包材', cat_dairy:'乳製品', cat_other:'其他',
+    ph_amount:'填入', ph_note:'備注', ph_pending:'待填入',
   },
   vi: {
     tab_overview:'Tổng quan', tab_purchase:'Hóa đơn', tab_salary:'Lương & giờ', tab_products:'Doanh thu',
@@ -1263,11 +1265,16 @@ const I18N = {
     month_overview:'Tổng quan tháng', salary_title:'Chi tiết lương & giờ làm',
     cat_bread:'Bánh mì', cat_meat:'Thịt', cat_veg:'Rau/Gia vị', cat_sauce:'Nước chấm/Sốt',
     cat_drink:'Đồ uống', cat_pack:'Bao bì', cat_dairy:'Sữa/Phô mai', cat_other:'Khác',
+    ph_amount:'Nhập', ph_note:'Ghi chú', ph_pending:'Chưa nhập',
   }
 };
 
 let currentLang = 'zh';
 function t(key) { return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.zh[key] || key); }
+
+// 品項類別翻譯：value 永遠存中文（寫回 Sheets），顯示名稱根據語言切換
+const CAT_KEYS = {'麵包/法棍':'cat_bread','肉類':'cat_meat','蔬菜/配料':'cat_veg','醬料/調味':'cat_sauce','飲品':'cat_drink','包材':'cat_pack','乳製品':'cat_dairy','其他':'cat_other'};
+function catLabel(val) { return val ? (t(CAT_KEYS[val]) || val) : t('select_cat'); }
 
 function setLang(lang) {
   currentLang = lang;
