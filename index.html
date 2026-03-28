@@ -144,6 +144,13 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
 .kpi:nth-child(2) { animation-delay:0.1s; }
 .kpi:nth-child(3) { animation-delay:0.15s; }
 .kpi:nth-child(4) { animation-delay:0.2s; }
+
+/* Sortable headers */
+.sort-th { cursor:pointer; user-select:none; transition:color 0.2s; white-space:nowrap; }
+.sort-th:hover { color:var(--accent); }
+.sort-th.active { color:var(--accent); }
+.sort-arrow { font-size:8px; opacity:0.3; margin-left:2px; }
+.sort-th.active .sort-arrow { opacity:1; }
 </style>
 </head>
 <body>
@@ -340,11 +347,11 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
       <thead><tr>
         <th class="L" style="width:30px">#</th>
         <th class="L" style="width:50px">預覽</th>
-        <th class="L">上傳時間</th>
-        <th class="L">傳送者</th>
-        <th style="width:110px">購買日期</th>
-        <th style="width:100px">金額</th>
-        <th style="width:120px">品項類別</th>
+        <th class="L sort-th" onclick="sortInvoices('time')" data-sort="time">上傳時間 <span class="sort-arrow">▼</span></th>
+        <th class="L sort-th" onclick="sortInvoices('sender')" data-sort="sender">傳送者</th>
+        <th class="sort-th" style="width:110px" onclick="sortInvoices('buydate')" data-sort="buydate">購買日期</th>
+        <th class="sort-th" style="width:100px" onclick="sortInvoices('amount')" data-sort="amount">金額</th>
+        <th class="sort-th" style="width:120px" onclick="sortInvoices('category')" data-sort="category">品項類別</th>
         <th class="L">備注</th>
         <th style="width:40px">操作</th>
       </tr></thead>
@@ -1055,7 +1062,27 @@ lbVp.addEventListener('touchmove', e => {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-// ── 載入發票（唯一版本） ──
+// ── 排序狀態 ──
+let invRows = [];       // 載入後的原始資料
+let invSort = { field: 'time', dir: 'desc' };  // 預設：時間倒序（最新在前）
+
+function sortInvoices(field) {
+  if (invSort.field === field) {
+    invSort.dir = invSort.dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    invSort.field = field;
+    invSort.dir = field === 'amount' ? 'desc' : 'asc';
+  }
+  renderInvoiceTable();
+  document.querySelectorAll('.sort-th').forEach(th => {
+    const isActive = th.dataset.sort === field;
+    th.classList.toggle('active', isActive);
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = isActive ? (invSort.dir === 'desc' ? '▼' : '▲') : '';
+  });
+}
+
+// ── 載入發票 ──
 async function loadInvoices() {
   document.getElementById('inv-loading').style.display = 'block';
   document.getElementById('inv-table').style.display = 'none';
@@ -1064,10 +1091,10 @@ async function loadInvoices() {
   try {
     const res  = await fetch(SHEET_CSV + '&cachebust=' + Date.now());
     const text = await res.text();
-    const rows = parseCSV(text).filter(r => r['日期']);
+    invRows = parseCSV(text).filter(r => r['日期']);
     const edits = getEdits();
 
-    if (!rows.length) {
+    if (!invRows.length) {
       document.getElementById('inv-loading').style.display = 'none';
       document.getElementById('inv-empty').style.display = 'block';
       return;
@@ -1076,120 +1103,32 @@ async function loadInvoices() {
     // KPIs
     const now = new Date();
     const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-    const monthRows = rows.filter(r => r['月份'] === thisMonth);
-    // 計算時排除已刪除的行
+    const monthRows = invRows.filter(r => r['月份'] === thisMonth);
     const deletedForCount = getDeletedRows();
     const activeMonthRows = monthRows.filter(r => {
-      const gi = rows.indexOf(r) + 2;
+      const gi = invRows.indexOf(r) + 2;
       return !deletedForCount.includes(gi);
     });
     document.getElementById('inv-count').textContent = activeMonthRows.length;
     document.getElementById('inv-month').textContent = thisMonth + ' 本月';
 
     let totalAmt = 0;
-    const deletedForKpi = getDeletedRows();
-    monthRows.forEach((r, idx) => {
-      const origIdx = rows.indexOf(r);
+    monthRows.forEach(r => {
+      const origIdx = invRows.indexOf(r);
       const gasRowNum = origIdx + 2;
-      if (deletedForKpi.includes(gasRowNum)) return; // 跳過已刪除
+      if (deletedForCount.includes(gasRowNum)) return;
       const rowKey = 'row_' + gasRowNum;
       const cached = edits[rowKey]?.amount;
       totalAmt += parseFloat(cached !== undefined ? cached : r['金額']) || 0;
     });
     document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
 
-    const latest = rows[rows.length-1];
+    const latest = invRows[invRows.length-1];
     document.getElementById('inv-latest').textContent = latest['日期']?.slice(5) || '—';
     document.getElementById('inv-who').textContent = latest['傳送者'] || '—';
     document.getElementById('inv-updated').textContent = '最後更新：' + new Date().toLocaleTimeString('zh-TW');
 
-    // Table（最新在前）
-    const tbody = document.getElementById('inv-tbody');
-    tbody.innerHTML = '';
-    const deletedRows = getDeletedRows();
-    [...rows].reverse().forEach((r, i) => {
-      const gasRow   = rows.length - i + 1;
-      // 跳過已刪除的行（CSV 快取可能還沒更新）
-      if (deletedRows.includes(gasRow)) return;
-      const key      = 'row_' + gasRow;  // 用行號當 key，保證唯一
-      const cached   = edits[key] || {};
-
-      const amt      = cached.amount   !== undefined ? cached.amount   : r['金額']     || '';
-      const cat      = cached.category !== undefined ? cached.category : r['品項類別'] || '';
-      const note     = cached.note     !== undefined ? cached.note     : r['備注']     || '';
-      const buyDate  = cached.buydate  !== undefined ? cached.buydate  : r['發票日期'] || '';
-      const driveUrl = r['Drive連結'] || '';
-      const thumbUrl = r['縮圖連結'] || '';
-
-      // 從 Drive URL 產生縮圖
-      function driveThumb(url, fallback) {
-        if (fallback) return fallback;
-        if (!url) return '';
-        const m = url.match(/\/d\/([^\/\?]+)/);
-        return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800' : '';
-      }
-      const previewSrc = driveThumb(driveUrl, thumbUrl);
-      const caption    = (r['日期'] || '') + ' ' + (r['傳送者'] || '');
-      // ★ 點擊用 Drive URL 開燈箱（同頁面 iframe 預覽）
-      const lbSrc      = driveUrl || previewSrc;
-
-      // 縮圖格子：點擊開燈箱（不跳新視窗）
-      const escapedLbSrc = lbSrc.replace(/'/g, "\\'");
-      const escapedCaption = caption.replace(/'/g, "\\'");
-      const thumb = lbSrc
-        ? `<div onclick="openLightbox('${escapedLbSrc}','${escapedCaption}')"
-              style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
-             ${previewSrc
-               ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;"
-                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
-                  <span style="display:none;font-size:18px;color:var(--accent2);align-items:center;justify-content:center;">📷</span>`
-               : `<span style="font-size:18px;color:var(--accent2);">📷</span>`
-             }
-           </div>`
-        : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
-
-      const catOpts = CATEGORIES.map(c =>
-        `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`
-      ).join('');
-
-      tbody.innerHTML += `<tr>
-        <td class="L" style="color:var(--muted);font-size:10px;">${rows.length-i}
-          <span id="ind-${key}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
-        </td>
-        <td>${thumb}</td>
-        <td class="L" style="font-size:11px;">${r['日期']||'—'} ${r['時間']||''}</td>
-        <td class="L">${r['傳送者']||'—'}</td>
-        <td>
-          <input type="date" value="${buyDate}"
-            onchange="saveField('${key}',${gasRow},'buydate',this.value)"
-            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;width:130px;"/>
-        </td>
-        <td>
-          <div style="display:flex;align-items:center;gap:3px;">
-            <span style="color:var(--muted);font-size:10px;">$</span>
-            <input type="number" value="${amt}" placeholder="填入"
-              onchange="saveField('${key}',${gasRow},'amount',this.value)"
-              style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
-          </div>
-        </td>
-        <td>
-          <select onchange="saveField('${key}',${gasRow},'category',this.value)"
-            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;cursor:pointer;max-width:115px;">
-            ${catOpts}
-          </select>
-        </td>
-        <td class="L">
-          <input type="text" value="${note}" placeholder="備注"
-            onchange="saveField('${key}',${gasRow},'note',this.value)"
-            style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
-        </td>
-        <td>
-          <button onclick="deleteRow(${gasRow},this)" title="刪除此行"
-            style="background:transparent;border:1px solid rgba(240,101,101,0.3);color:var(--red);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:12px;opacity:0.5;transition:opacity 0.2s;"
-            onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">🗑</button>
-        </td>
-      </tr>`;
-    });
+    renderInvoiceTable();
 
     document.getElementById('inv-loading').style.display = 'none';
     document.getElementById('inv-table').style.display = 'table';
@@ -1198,6 +1137,90 @@ async function loadInvoices() {
     document.getElementById('inv-loading').innerHTML =
       '⚠️ 載入失敗<br><span style="font-size:11px;">'+e.message+'</span>';
   }
+}
+
+// ── 渲染表格（排序 + 過濾已刪除） ──
+function renderInvoiceTable() {
+  const edits = getEdits();
+  const deletedRows = getDeletedRows();
+  const tbody = document.getElementById('inv-tbody');
+  tbody.innerHTML = '';
+
+  const items = invRows.map((r, idx) => ({
+    r, gasRow: idx + 2, origIdx: idx
+  })).filter(item => !deletedRows.includes(item.gasRow));
+
+  // 排序
+  items.sort((a, b) => {
+    const edA = edits['row_' + a.gasRow] || {};
+    const edB = edits['row_' + b.gasRow] || {};
+    let va, vb;
+    switch (invSort.field) {
+      case 'time':
+        va = (a.r['日期']||'') + ' ' + (a.r['時間']||'');
+        vb = (b.r['日期']||'') + ' ' + (b.r['時間']||'');
+        break;
+      case 'sender':
+        va = a.r['傳送者'] || '';
+        vb = b.r['傳送者'] || '';
+        break;
+      case 'buydate':
+        va = edA.buydate !== undefined ? edA.buydate : a.r['發票日期'] || '';
+        vb = edB.buydate !== undefined ? edB.buydate : b.r['發票日期'] || '';
+        break;
+      case 'amount':
+        va = parseFloat(edA.amount !== undefined ? edA.amount : a.r['金額']) || 0;
+        vb = parseFloat(edB.amount !== undefined ? edB.amount : b.r['金額']) || 0;
+        return invSort.dir === 'desc' ? vb - va : va - vb;
+      case 'category':
+        va = edA.category !== undefined ? edA.category : a.r['品項類別'] || '';
+        vb = edB.category !== undefined ? edB.category : b.r['品項類別'] || '';
+        break;
+      default: va = ''; vb = '';
+    }
+    if (typeof va === 'string') {
+      const cmp = va.localeCompare(vb, 'zh-TW');
+      return invSort.dir === 'desc' ? -cmp : cmp;
+    }
+    return 0;
+  });
+
+  items.forEach(item => {
+    const r = item.r, gasRow = item.gasRow;
+    const key = 'row_' + gasRow;
+    const cached = edits[key] || {};
+    const amt     = cached.amount   !== undefined ? cached.amount   : r['金額']     || '';
+    const cat     = cached.category !== undefined ? cached.category : r['品項類別'] || '';
+    const note    = cached.note     !== undefined ? cached.note     : r['備注']     || '';
+    const buyDate = cached.buydate  !== undefined ? cached.buydate  : r['發票日期'] || '';
+    const driveUrl = r['Drive連結'] || '', thumbUrl = r['縮圖連結'] || '';
+    function driveThumb(url, fallback) {
+      if (fallback) return fallback;
+      if (!url) return '';
+      const m = url.match(/\/d\/([^\/\?]+)/);
+      return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800' : '';
+    }
+    const previewSrc = driveThumb(driveUrl, thumbUrl);
+    const caption = (r['日期']||'') + ' ' + (r['傳送者']||'');
+    const lbSrc = driveUrl || previewSrc;
+    const eLb = lbSrc.replace(/'/g, "\\'"), eCap = caption.replace(/'/g, "\\'");
+    const thumb = lbSrc
+      ? `<div onclick="openLightbox('${eLb}','${eCap}')" style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">${previewSrc ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><span style="display:none;font-size:18px;color:var(--accent2);align-items:center;justify-content:center;">📷</span>` : `<span style="font-size:18px;color:var(--accent2);">📷</span>`}</div>`
+      : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
+    const catOpts = CATEGORIES.map(c => `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`).join('');
+
+    tbody.innerHTML += `<tr>
+      <td class="L" style="color:var(--muted);font-size:10px;">${gasRow-1}<span id="ind-${key}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span></td>
+      <td>${thumb}</td>
+      <td class="L" style="font-size:11px;">${r['日期']||'—'} ${r['時間']||''}</td>
+      <td class="L">${r['傳送者']||'—'}</td>
+      <td><input type="date" value="${buyDate}" onchange="saveField('${key}',${gasRow},'buydate',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;width:130px;"/></td>
+      <td><div style="display:flex;align-items:center;gap:3px;"><span style="color:var(--muted);font-size:10px;">$</span><input type="number" value="${amt}" placeholder="填入" onchange="saveField('${key}',${gasRow},'amount',this.value)" style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/></div></td>
+      <td><select onchange="saveField('${key}',${gasRow},'category',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;cursor:pointer;max-width:115px;">${catOpts}</select></td>
+      <td class="L"><input type="text" value="${note}" placeholder="備注" onchange="saveField('${key}',${gasRow},'note',this.value)" style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/></td>
+      <td><button onclick="deleteRow(${gasRow},this)" title="刪除此行" style="background:transparent;border:1px solid rgba(240,101,101,0.3);color:var(--red);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:12px;opacity:0.5;transition:opacity 0.2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'">🗑</button></td>
+    </tr>`;
+  });
 }
 
 // ── i18n 語言系統 ──
