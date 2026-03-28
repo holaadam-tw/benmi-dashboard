@@ -356,7 +356,6 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   </div>
 </div>
 
-<!-- 燈箱預覽 -->
 <!-- 燈箱預覽（支援圖片 + Google Drive iframe） -->
 <div id="lightbox" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:9999;flex-direction:column;">
   <!-- 工具列 -->
@@ -518,40 +517,17 @@ const DATA = [
 ];
 
 const PRODUCTS = [
-  ['Cheese 雙層烤肉',272,31280],
-  ['燒肉麵包 / Braised pork',369,29590],
-  ['烤肉麵包 Grilled Meat',241,25305],
-  ['綜合麵包 / Mixed',146,18980],
-  ['Set 4',126,16128],
-  ['Set1',169,15210],
-  ['Set 5',118,15930],
-  ['Set 6',85,12070],
-  ['雞肉麵包 / Chicken',117,11700],
-  ['Mini 燒肉',180,10080],
-  ['Set 3',93,10974],
-  ['Mini 烤肉',122,8784],
-  ['Set 9',27,2565],
-  ['Set 2',23,2040],
-  ['Set 7',29,2233],
-  ['Set 11',27,2700],
-  ['Set 8',20,1760],
-  ['Set 10',16,1584],
-  ['Mini 雙層烤肉',78,6104],
-  ['Mini雞肉',74,5032],
-  ['Mini 綜合麵包',72,5688],
-  ['火腿麵包 / Ham',38,3040],
-  ['Mini 火腿麵包',16,896],
-  ['加 起司 Cheese',42,630],
-  ['加 雞肉 Chicken',17,425],
-  ['加 烤肉 Grilled Meat',9,225],
-  ['加 燒肉 Braised Pork',7,140],
-  ['加 火腿 Ham',2,40],
-  ['越南咖啡',7,336],
-  ['可樂 Cocacola',1,37],
-  ['豆漿 Soy Milk',1,37],
-  ['麵包',4,150],
-  ['Th',1,30],
+  ['Cheese 雙層烤肉',272,31280],['燒肉麵包 / Braised pork',369,29590],['烤肉麵包 Grilled Meat',241,25305],
+  ['綜合麵包 / Mixed',146,18980],['Set 4',126,16128],['Set1',169,15210],['Set 5',118,15930],['Set 6',85,12070],
+  ['雞肉麵包 / Chicken',117,11700],['Mini 燒肉',180,10080],['Set 3',93,10974],['Mini 烤肉',122,8784],
+  ['Set 9',27,2565],['Set 2',23,2040],['Set 7',29,2233],['Set 11',27,2700],['Set 8',20,1760],['Set 10',16,1584],
+  ['Mini 雙層烤肉',78,6104],['Mini雞肉',74,5032],['Mini 綜合麵包',72,5688],['火腿麵包 / Ham',38,3040],
+  ['Mini 火腿麵包',16,896],['加 起司 Cheese',42,630],['加 雞肉 Chicken',17,425],['加 烤肉 Grilled Meat',9,225],
+  ['加 燒肉 Braised Pork',7,140],['加 火腿 Ham',2,40],['越南咖啡',7,336],['可樂 Cocacola',1,37],
+  ['豆漿 Soy Milk',1,37],['麵包',4,150],['Th',1,30],
 ];
+
+const CATEGORIES = ['','麵包/法棍','肉類','蔬菜/配料','醬料/調味','飲品','包材','乳製品','其他'];
 
 const fmt = n => n == null ? '—' : '$' + Math.round(n).toLocaleString();
 const pct = (a,b) => b ? (a/b*100).toFixed(1)+'%' : '—';
@@ -594,7 +570,6 @@ function updateOverview() {
   document.getElementById('kpi-salary').textContent = fmt(d.salary);
   document.getElementById('kpi-profit').textContent = fmt(profit);
 
-  // Changes
   const revChange = prev ? ((d.revenue - prev.revenue)/prev.revenue*100).toFixed(1) : null;
   const revEl = document.getElementById('kpi-revenue-change');
   if (revChange) { revEl.textContent = (revChange>0?'↑':'↓') + Math.abs(revChange) + '% vs 上月'; revEl.className = 'kpi-change ' + (revChange>0?'up':'down'); }
@@ -604,14 +579,12 @@ function updateOverview() {
   document.getElementById('kpi-salary-pct').textContent = d.salary ? '薪資率 ' + pct(d.salary, d.revenue) : '資料不足';
   document.getElementById('kpi-margin').textContent = margin ? '毛利率 ' + margin + '%' : '資料不足';
 
-  // Legend
   document.getElementById('leg-rev').textContent = fmt(d.revenue);
   document.getElementById('leg-food').textContent = fmt(d.food);
   document.getElementById('leg-sal').textContent = fmt(d.salary);
   document.getElementById('leg-profit').textContent = fmt(profit);
   document.getElementById('donut-pct').textContent = margin ? margin + '%' : '—';
 
-  // Donut
   const circ = 2 * Math.PI * 42;
   const foodPct = d.food ? d.food / d.revenue : 0;
   const salPct = d.salary ? d.salary / d.revenue : 0;
@@ -688,10 +661,9 @@ function buildProducts() {
   });
 }
 
-// ── Load invoices from Google Sheets ──
+// ── Config ──
 const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhrTVj6ZRhhNafyDDqkoHcB9C7pgF-b7YcZwWDINKL8yElLH45lptTwigLKF-N0gtiwBOPHNsqCueF/pub?gid=390599286&single=true&output=csv';
 const GAS_URL   = 'https://script.google.com/macros/s/AKfycby2jXOcndmV6xsbhTSEGweLduhNY_6V4cgmIUxMaUfHbmuGni6hHpS93W-cLzofLoW8AQ/exec';
-const CATEGORIES = ['','麵包/法棍','肉類','蔬菜/配料','醬料/調味','飲品','包材','乳製品','其他'];
 
 // ── sessionStorage 暫存 ──
 function getEdits() {
@@ -750,14 +722,10 @@ async function uploadFiles(files) {
     status.style.color = 'var(--muted)';
 
     try {
-      // 1. 計算 hash 去重
       const buf  = await file.arrayBuffer();
       const hash = await computeHash(buf);
-
-      // 2. 轉 base64
       const b64  = await fileToBase64(file);
 
-      // 3. 送到 GAS
       const res  = await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
@@ -771,7 +739,6 @@ async function uploadFiles(files) {
       } else if (data.status === 'ok') {
         status.innerHTML = `✅ 上傳成功：${file.name}`;
         status.style.color = 'var(--green)';
-        // 立即插入一行到表格頂部，不等 Sheets 更新
         insertPendingRow(file, data.thumbUrl || '');
       } else {
         status.innerHTML = `❌ 失敗：${data.msg || '未知錯誤'}`;
@@ -785,7 +752,6 @@ async function uploadFiles(files) {
     await new Promise(r => setTimeout(r, 400));
   }
 
-  // 上傳全部完成後靜默重新載入（背景同步，不清空已填的值）
   setTimeout(() => { loadInvoices(); status.innerHTML = ''; }, 3000);
 }
 
@@ -800,27 +766,28 @@ function insertPendingRow(file, thumbUrl) {
   const dateStr = now.toLocaleDateString('zh-TW', { year:'numeric', month:'2-digit', day:'2-digit' });
   const timeStr = now.toLocaleTimeString('zh-TW', { hour:'2-digit', minute:'2-digit', hour12:false });
 
-  // 本地預覽縮圖（直接用 FileReader）
   const reader = new FileReader();
   reader.onload = () => {
     const localSrc = reader.result;
-    const thumb = `<img src="${localSrc}"
-      onclick="openLightbox('${localSrc}','${dateStr} 網頁上傳')"
-      style="width:44px;height:44px;object-fit:cover;border-radius:4px;cursor:zoom-in;border:1px solid var(--border);"/>`;
+    const thumb = `<div onclick="openLightbox('${localSrc.replace(/'/g,"\\'")}','${dateStr} 網頁上傳')"
+      style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;">
+      <img src="${localSrc}" style="width:100%;height:100%;object-fit:cover;"/>
+    </div>`;
 
     const tr = document.createElement('tr');
     tr.style.background = 'rgba(62,207,142,0.06)';
     tr.innerHTML = `
       <td class="L" style="color:var(--green);font-size:10px;">新</td>
-      <td><div>${thumb}</div></td>
+      <td>${thumb}</td>
       <td class="L" style="font-size:11px;">${dateStr} ${timeStr}</td>
       <td class="L">網頁上傳</td>
+      <td><input type="date" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;width:130px;"/></td>
       <td><div style="display:flex;align-items:center;gap:3px;">
         <span style="color:var(--muted);font-size:10px;">$</span>
         <input type="number" placeholder="填入"
           style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
       </div></td>
-      <td><select style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;max-width:115px;">
+      <td><select style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:11px;max-width:115px;">
         ${CATEGORIES.map(c=>`<option>${c||'— 選擇品項 —'}</option>`).join('')}
       </select></td>
       <td class="L"><input type="text" placeholder="備注"
@@ -838,6 +805,23 @@ function handleDrop(e) {
   uploadFiles(e.dataTransfer.files);
 }
 
+// ── 欄位儲存 ──
+function saveField(key, gasRow, field, value) {
+  saveEdit(key, field, value);
+  const ind = document.getElementById('ind-'+key);
+  if (ind) { ind.textContent='⏳'; ind.style.color='var(--muted)'; ind.style.opacity='1'; }
+  const params = new URLSearchParams({ action:'update', row: gasRow });
+  params.set(field === 'amount' ? 'amount' : field === 'category' ? 'category' : field === 'buydate' ? 'buydate' : 'note', value);
+  fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
+    .finally(() => {
+      if (ind) {
+        ind.textContent = '✓ 已儲存';
+        ind.style.color = 'var(--green)';
+        setTimeout(() => { ind.style.opacity='0'; }, 2500);
+      }
+    });
+}
+
 // ── 燈箱：支援縮放、平移 ──
 let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0 };
 
@@ -850,7 +834,6 @@ function openLightbox(src, caption) {
   const isDrive = src && src.includes('drive.google.com');
 
   if (isDrive) {
-    // 從 Drive URL 取得 file ID → 用 /preview iframe
     const m = src.match(/\/d\/([^\/\?]+)/);
     const fileId = m ? m[1] : null;
     const embedUrl = fileId
@@ -863,7 +846,6 @@ function openLightbox(src, caption) {
     document.getElementById('lb-hint').textContent = 'Google Drive 預覽 · ESC 關閉';
     document.getElementById('lb-iframe').src = embedUrl;
   } else {
-    // 一般圖片模式
     document.getElementById('lb-viewport').style.display = 'block';
     document.getElementById('lb-iframe-wrap').style.display = 'none';
     document.getElementById('lb-zoom-controls').style.display = 'flex';
@@ -894,7 +876,6 @@ function lbApply() {
 function lbZoom(factor) {
   const vp  = document.getElementById('lb-viewport');
   const cx  = vp.clientWidth / 2, cy = vp.clientHeight / 2;
-  const img = document.getElementById('lb-img');
   const newScale = Math.max(0.1, Math.min(10, lb.scale * factor));
   lb.x = cx - (cx - lb.x) * (newScale / lb.scale);
   lb.y = cy - (cy - lb.y) * (newScale / lb.scale);
@@ -972,193 +953,7 @@ lbVp.addEventListener('touchmove', e => {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-// ── 欄位儲存 ──
-function saveField(key, gasRow, field, value) {
-  saveEdit(key, field, value);
-  const ind = document.getElementById('ind-'+key);
-  if (ind) { ind.textContent='⏳'; ind.style.color='var(--muted)'; ind.style.opacity='1'; }
-  const params = new URLSearchParams({ action:'update', row: gasRow });
-  const fieldMap = { amount:'amount', category:'category', buydate:'buydate', note:'note' };
-  params.set(fieldMap[field] || 'note', value);
-  fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
-    .finally(() => {
-      if (ind) {
-        ind.textContent='✓'; ind.style.color='var(--green)';
-        setTimeout(() => { ind.style.opacity='0'; }, 2500);
-      }
-    });
-}
-
-// ── 載入發票 ──
-async function loadInvoices() {
-  document.getElementById('inv-loading').style.display = 'block';
-  document.getElementById('inv-table').style.display = 'none';
-  document.getElementById('inv-empty').style.display = 'none';
-
-  try {
-    const res  = await fetch(SHEET_CSV + '&t=' + Date.now());
-    const text = await res.text();
-    const rows = parseCSV(text).filter(r => r['日期']);
-    const edits = getEdits();
-
-    if (!rows.length) {
-      document.getElementById('inv-loading').style.display = 'none';
-      document.getElementById('inv-empty').style.display = 'block';
-      return;
-    }
-
-    // KPIs
-    const now = new Date();
-    const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-    const monthRows = rows.filter(r => r['月份'] === thisMonth);
-    document.getElementById('inv-count').textContent = monthRows.length;
-    document.getElementById('inv-month').textContent = thisMonth + ' 本月';
-    let totalAmt = 0;
-    monthRows.forEach(r => {
-      const key = r['日期'] + '_' + r['時間'];
-      totalAmt += parseFloat(edits[key]?.amount ?? r['金額']) || 0;
-    });
-    document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
-    const latest = rows[rows.length-1];
-    document.getElementById('inv-latest').textContent = latest['日期']?.slice(5) || '—';
-    document.getElementById('inv-who').textContent = latest['傳送者'] || '—';
-    document.getElementById('inv-updated').textContent = '最後更新：' + new Date().toLocaleTimeString('zh-TW');
-
-    // Table
-    const tbody = document.getElementById('inv-tbody');
-    tbody.innerHTML = '';
-    [...rows].reverse().forEach((r, i) => {
-      const gasRow   = rows.length - i + 1;
-      const key      = r['日期'] + '_' + r['時間'];
-      const cached   = edits[key] || {};
-      const amt      = cached.amount   ?? r['金額']     ?? '';
-      const cat      = cached.category ?? r['品項類別'] ?? '';
-      const note     = cached.note     ?? r['備注']     ?? '';
-      const buyDate  = cached.buydate  ?? r['購買日期'] ?? '';
-      const thumbUrl = r['縮圖連結']   || '';
-      const driveUrl = r['Drive連結']  || '';
-
-      // 從 Drive URL 或縮圖 URL 取得預覽圖
-      function driveThumb(url, fallbackThumb) {
-        if (fallbackThumb) return fallbackThumb;
-        if (!url) return '';
-        const m = url.match(/\/d\/([^\/\?]+)/);
-        return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800' : '';
-      }
-      const previewSrc = driveThumb(driveUrl, thumbUrl);
-      const caption    = (r['日期'] || '') + ' ' + (r['傳送者'] || '');
-      // 點擊永遠用 Drive URL 開燈箱（iframe 預覽，不需公開權限）
-      const lbSrc      = driveUrl || previewSrc;
-
-      // 縮圖格子：永遠用燈箱
-      const thumb = lbSrc
-        ? `<div onclick="openLightbox('${lbSrc}','${caption}')"
-              style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
-             ${previewSrc
-               ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;"
-                    onerror="this.style.display='none';this.nextSibling.style.display='flex'"/>
-                  <span style="display:none;font-size:18px;color:var(--accent2);">📷</span>`
-               : `<span style="font-size:18px;color:var(--accent2);">📷</span>`
-             }
-           </div>`
-        : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
-
-      const catOpts = CATEGORIES.map(c =>
-        `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`
-      ).join('');
-
-      tbody.innerHTML += `<tr>
-        <td class="L" style="color:var(--muted);font-size:10px;">${rows.length-i}
-          <span id="ind-${key}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
-        </td>
-        <td><div style="display:flex;gap:0;">${thumb}</div></td>
-        <td class="L" style="font-size:11px;">${r['日期']||'—'} ${r['時間']||''}</td>
-        <td class="L">${r['傳送者']||'—'}</td>
-        <td>
-          <input type="date" value="${buyDate}"
-            onchange="saveField('${key}',${gasRow},'buydate',this.value)"
-            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;width:126px;"/>
-        </td>
-        <td>
-          <div style="display:flex;align-items:center;gap:3px;">
-            <span style="color:var(--muted);font-size:10px;">$</span>
-            <input type="number" value="${amt}" placeholder="填入"
-              onchange="saveField('${key}',${gasRow},'amount',this.value)"
-              style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
-          </div>
-        </td>
-        <td>
-          <select onchange="saveField('${key}',${gasRow},'category',this.value)"
-            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;cursor:pointer;max-width:115px;">
-            ${catOpts}
-          </select>
-        </td>
-        <td class="L">
-          <input type="text" value="${note}" placeholder="備注"
-            onchange="saveField('${key}',${gasRow},'note',this.value)"
-            style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
-        </td>
-      </tr>`;
-    });
-
-    document.getElementById('inv-loading').style.display = 'none';
-    document.getElementById('inv-table').style.display = 'table';
-
-  } catch(e) {
-    document.getElementById('inv-loading').innerHTML =
-      '⚠️ 載入失敗<br><span style="font-size:11px;">'+e.message+'</span>';
-  }
-}
-
-// 用 sessionStorage 暫存本頁填入的值，重新載入前不消失
-function getEdits() {
-  try { return JSON.parse(sessionStorage.getItem('inv_edits') || '{}'); } catch(e) { return {}; }
-}
-function saveEdit(key, field, value) {
-  const edits = getEdits();
-  if (!edits[key]) edits[key] = {};
-  edits[key][field] = value;
-  sessionStorage.setItem('inv_edits', JSON.stringify(edits));
-}
-
-function parseCSV(text) {
-  const lines = text.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
-  return lines.slice(1).map(line => {
-    const vals = []; let cur = '', inQ = false;
-    for (let c of line) {
-      if (c==='"') inQ=!inQ;
-      else if (c===',' && !inQ) { vals.push(cur.trim()); cur=''; }
-      else cur+=c;
-    }
-    vals.push(cur.trim());
-    const obj = {};
-    headers.forEach((h,i) => obj[h] = (vals[i]||'').replace(/^"|"$/g,''));
-    return obj;
-  });
-}
-
-function saveField(key, gasRow, field, value) {
-  // 1. 立刻存到 sessionStorage（重新載入前不消失）
-  saveEdit(key, field, value);
-
-  // 2. 非同步寫回 Google Sheets
-  const ind = document.getElementById('ind-'+key);
-  if (ind) { ind.textContent='⏳'; ind.style.color='var(--muted)'; ind.style.opacity='1'; }
-
-  const params = new URLSearchParams({ action:'update', row: gasRow });
-  params.set(field === 'amount' ? 'amount' : field === 'category' ? 'category' : field === 'buydate' ? 'buydate' : 'note', value);
-
-  fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
-    .finally(() => {
-      if (ind) {
-        ind.textContent = '✓ 已儲存';
-        ind.style.color = 'var(--green)';
-        setTimeout(() => { ind.style.opacity='0'; }, 2500);
-      }
-    });
-}
-
+// ── 載入發票（唯一版本） ──
 async function loadInvoices() {
   document.getElementById('inv-loading').style.display = 'block';
   document.getElementById('inv-table').style.display = 'none';
@@ -1183,9 +978,8 @@ async function loadInvoices() {
     document.getElementById('inv-count').textContent = monthRows.length;
     document.getElementById('inv-month').textContent = thisMonth + ' 本月';
 
-    // 合計：優先用 sessionStorage 暫存值，否則用 Sheets 值
     let totalAmt = 0;
-    monthRows.forEach((r, idx) => {
+    monthRows.forEach(r => {
       const key = r['日期'] + '_' + r['時間'];
       const cached = edits[key]?.amount;
       totalAmt += parseFloat(cached !== undefined ? cached : r['金額']) || 0;
@@ -1201,25 +995,53 @@ async function loadInvoices() {
     const tbody = document.getElementById('inv-tbody');
     tbody.innerHTML = '';
     [...rows].reverse().forEach((r, i) => {
-      const gasRow   = rows.length - i + 1;  // sheet row (+1 for header)
+      const gasRow   = rows.length - i + 1;
       const key      = r['日期'] + '_' + r['時間'];
       const cached   = edits[key] || {};
 
-      // 優先用暫存值，沒有才用 Sheets 的值
       const amt      = cached.amount   !== undefined ? cached.amount   : r['金額']     || '';
       const cat      = cached.category !== undefined ? cached.category : r['品項類別'] || '';
       const note     = cached.note     !== undefined ? cached.note     : r['備注']     || '';
       const buyDate  = cached.buydate  !== undefined ? cached.buydate  : r['發票日期'] || '';
       const driveUrl = r['Drive連結'] || '';
+      const thumbUrl = r['縮圖連結'] || '';
+
+      // 從 Drive URL 產生縮圖
+      function driveThumb(url, fallback) {
+        if (fallback) return fallback;
+        if (!url) return '';
+        const m = url.match(/\/d\/([^\/\?]+)/);
+        return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800' : '';
+      }
+      const previewSrc = driveThumb(driveUrl, thumbUrl);
+      const caption    = (r['日期'] || '') + ' ' + (r['傳送者'] || '');
+      // ★ 點擊用 Drive URL 開燈箱（同頁面 iframe 預覽）
+      const lbSrc      = driveUrl || previewSrc;
+
+      // 縮圖格子：點擊開燈箱（不跳新視窗）
+      const escapedLbSrc = lbSrc.replace(/'/g, "\\'");
+      const escapedCaption = caption.replace(/'/g, "\\'");
+      const thumb = lbSrc
+        ? `<div onclick="openLightbox('${escapedLbSrc}','${escapedCaption}')"
+              style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
+             ${previewSrc
+               ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;"
+                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+                  <span style="display:none;font-size:18px;color:var(--accent2);align-items:center;justify-content:center;">📷</span>`
+               : `<span style="font-size:18px;color:var(--accent2);">📷</span>`
+             }
+           </div>`
+        : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
 
       const catOpts = CATEGORIES.map(c =>
-        `<option value="${c}" ${c===cat?'selected':''}>${c||'— 選擇品項 —'}</option>`
+        `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`
       ).join('');
 
       tbody.innerHTML += `<tr>
-        <td class="L" style="color:var(--muted);font-size:10px;">${rows.length - i}
+        <td class="L" style="color:var(--muted);font-size:10px;">${rows.length-i}
           <span id="ind-${key}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
         </td>
+        <td>${thumb}</td>
         <td class="L" style="font-size:11px;">${r['日期']||'—'} ${r['時間']||''}</td>
         <td class="L">${r['傳送者']||'—'}</td>
         <td>
@@ -1245,9 +1067,6 @@ async function loadInvoices() {
           <input type="text" value="${note}" placeholder="備注"
             onchange="saveField('${key}',${gasRow},'note',this.value)"
             style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
-        </td>
-        <td class="L">
-          ${driveUrl ? `<a href="${driveUrl}" target="_blank" style="color:var(--accent2);font-size:11px;text-decoration:none;">📷 查看</a>` : '—'}
         </td>
       </tr>`;
     });
@@ -1298,17 +1117,14 @@ function t(key) { return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.
 
 function setLang(lang) {
   currentLang = lang;
-  // Nav buttons
   document.getElementById('lang-zh').style.background = lang==='zh' ? 'var(--accent)' : 'transparent';
   document.getElementById('lang-zh').style.color      = lang==='zh' ? '#000' : 'var(--muted)';
   document.getElementById('lang-vi').style.background = lang==='vi' ? 'var(--accent)' : 'transparent';
   document.getElementById('lang-vi').style.color      = lang==='vi' ? '#000' : 'var(--muted)';
-  // Tabs
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
     if (I18N[lang][key]) el.textContent = I18N[lang][key];
   });
-  // Dynamic labels
   const els = {
     'upload-drag-text': t('upload_drag'),
     'upload-hint-text': t('upload_hint'),
@@ -1317,7 +1133,6 @@ function setLang(lang) {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
   });
-  // Reload invoices to re-render with new lang
   loadInvoices();
 }
 
