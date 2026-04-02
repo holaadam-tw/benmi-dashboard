@@ -131,3 +131,94 @@ export function invoiceSortComparator(a, b, field, dir, editsA = {}, editsB = {}
 export function isDeletedExpired(data, now = Date.now()) {
   return now - (data.time || 0) > 600000;
 }
+
+// ── Storage layer (injectable storage for testability) ──
+export function getEdits(storage = sessionStorage) {
+  try {
+    const data = JSON.parse(storage.getItem('inv_edits') || '{}');
+    if (data._version !== 2) { storage.removeItem('inv_edits'); return { _version: 2 }; }
+    return data;
+  } catch (e) { return { _version: 2 }; }
+}
+
+export function saveEdit(key, field, value, storage = sessionStorage) {
+  const edits = getEdits(storage);
+  if (!edits[key]) edits[key] = {};
+  edits[key][field] = value;
+  edits._version = 2;
+  storage.setItem('inv_edits', JSON.stringify(edits));
+}
+
+export function getDeletedKeys(storage = sessionStorage) {
+  try {
+    const data = JSON.parse(storage.getItem('inv_deleted') || '{"keys":[],"time":0}');
+    if (Date.now() - (data.time || 0) > 600000) {
+      storage.removeItem('inv_deleted');
+      return [];
+    }
+    return data.keys || [];
+  } catch (e) { return []; }
+}
+
+export function markDeleted(uniqueKey, storage = sessionStorage) {
+  const list = getDeletedKeys(storage);
+  if (!list.includes(uniqueKey)) list.push(uniqueKey);
+  storage.setItem('inv_deleted', JSON.stringify({ keys: list, time: Date.now() }));
+}
+
+// ── Donut chart math ──
+export function calcDonutDash(revenue, food, salary) {
+  const circ = 2 * Math.PI * 42;
+  const foodPct = food ? food / revenue : 0;
+  const salPct = salary ? salary / revenue : 0;
+  const foodDash = circ * foodPct;
+  const salDash = circ * salPct;
+  return {
+    circ,
+    foodDash,
+    salDash,
+    foodOffset: circ - foodDash,
+    foodArray: foodDash + ' ' + (circ - foodDash),
+    salOffset: circ - foodDash - salDash,
+    salArray: salDash + ' ' + (circ - salDash),
+  };
+}
+
+// ── Bar chart height calculation ──
+export function calcBarHeights(data, maxHeight = 130) {
+  const maxRev = Math.max(...data.filter(d => d.revenue).map(d => d.revenue));
+  return data.map(d => ({
+    revenue: Math.round(d.revenue / maxRev * maxHeight),
+    food: d.food ? Math.round(d.food / maxRev * maxHeight) : 0,
+    salary: d.salary ? Math.round(d.salary / maxRev * maxHeight) : 0,
+  }));
+}
+
+// ── Build saveField URL params ──
+export function buildSaveParams(gasRow, field, value) {
+  const params = new URLSearchParams({ action: 'update', row: gasRow });
+  const paramKey = field === 'amount' ? 'amount'
+    : field === 'category' ? 'category'
+    : field === 'buydate' ? 'buydate'
+    : 'note';
+  params.set(paramKey, value);
+  return params.toString();
+}
+
+// ── Drive thumbnail URL builder ──
+export function driveThumbUrl(driveUrl, fallbackThumb) {
+  if (fallbackThumb) return fallbackThumb;
+  if (!driveUrl) return '';
+  const m = driveUrl.match(/\/d\/([^\/\?]+)/);
+  return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800' : '';
+}
+
+// ── i18n completeness check ──
+export function findMissingI18nKeys() {
+  const zhKeys = Object.keys(I18N.zh);
+  const viKeys = Object.keys(I18N.vi);
+  return {
+    missingInVi: zhKeys.filter(k => !viKeys.includes(k)),
+    missingInZh: viKeys.filter(k => !zhKeys.includes(k)),
+  };
+}
