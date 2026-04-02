@@ -137,8 +137,13 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   .kpi-grid { grid-template-columns:repeat(2,1fr); }
   .chart-row { grid-template-columns:1fr; }
   .product-grid { grid-template-columns:1fr; }
-  nav { padding:14px 16px; }
+  nav { padding:14px 16px; flex-wrap:wrap; gap:8px; }
+  nav .nav-tabs { order:3; width:100%; justify-content:center; }
   main { padding:16px; }
+  /* 發票表格手機可橫向滾動 */
+  .table-box { position:relative; }
+  .inv-scroll-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  #inv-table { min-width:780px; }
 }
 
 /* Fade in */
@@ -347,20 +352,22 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
     <div id="inv-loading" style="padding:40px;text-align:center;color:var(--muted);font-size:13px;">
       ⏳ 載入發票資料中...
     </div>
+    <div class="inv-scroll-wrap">
     <table id="inv-table" style="display:none;">
       <thead><tr>
         <th class="L" style="width:36px">#</th>
         <th class="L" style="width:52px">預覽</th>
-        <th class="L sort-th" style="width:140px" onclick="sortInvoices('time')" data-sort="time">上傳時間 <span class="sort-arrow">▼</span></th>
-        <th class="L sort-th" style="width:80px" onclick="sortInvoices('sender')" data-sort="sender">傳送者</th>
-        <th class="sort-th" style="width:130px" onclick="sortInvoices('buydate')" data-sort="buydate">購買日期</th>
-        <th class="sort-th" style="width:100px" onclick="sortInvoices('amount')" data-sort="amount">金額</th>
-        <th class="sort-th" style="width:120px" onclick="sortInvoices('category')" data-sort="category">品項類別</th>
-        <th class="L" style="width:90px">備注</th>
-        <th style="width:40px">操作</th>
+        <th class="L sort-th" style="width:130px" onclick="sortInvoices('time')" data-sort="time">上傳時間 <span class="sort-arrow">▼</span></th>
+        <th class="L sort-th" style="width:70px" onclick="sortInvoices('sender')" data-sort="sender">傳送者</th>
+        <th class="sort-th" style="width:125px" onclick="sortInvoices('buydate')" data-sort="buydate">購買日期</th>
+        <th class="sort-th" style="width:95px" onclick="sortInvoices('amount')" data-sort="amount">金額</th>
+        <th class="sort-th" style="width:115px" onclick="sortInvoices('category')" data-sort="category">品項類別</th>
+        <th class="L" style="width:85px">備注</th>
+        <th style="width:36px">操作</th>
       </tr></thead>
       <tbody id="inv-tbody"></tbody>
     </table>
+    </div>
     <div id="inv-empty" style="display:none;padding:40px;text-align:center;color:var(--muted);font-size:13px;">
       📭 目前沒有發票記錄<br>
       <span style="font-size:11px;margin-top:6px;display:block;">在 LINE 群組傳圖片或直接上傳</span>
