@@ -205,8 +205,8 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <option value="2">2025年11月</option>
         <option value="3">2025年12月</option>
         <option value="4">2026年1月</option>
-        <option value="5" selected>2026年2月</option>
-        <option value="6">2026年3月（進行中）</option>
+        <option value="5">2026年2月</option>
+        <option value="6" selected>2026年3月（進行中）</option>
       </select>
       <button onclick="changeMonth(1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;">▶</button>
     </div>
@@ -535,18 +535,20 @@ const DATA = [
   { revenue:313417, food:205585,  salary:103550, note:'首個月報月' },
   { revenue:393365, food:162040,  salary:153305, note:'最高業績' },
   { revenue:209409, food:83085,   salary:97935,  note:'' },
-  { revenue:241723, food:null,    salary:null,   note:'進行中' },
+  { revenue:284088, food:null,    salary:null,   note:'進行中' },
 ];
 
 const PRODUCTS = [
-  ['Cheese 雙層烤肉',272,31280],['燒肉麵包 / Braised pork',369,29590],['烤肉麵包 Grilled Meat',241,25305],
-  ['綜合麵包 / Mixed',146,18980],['Set 4',126,16128],['Set1',169,15210],['Set 5',118,15930],['Set 6',85,12070],
-  ['雞肉麵包 / Chicken',117,11700],['Mini 燒肉',180,10080],['Set 3',93,10974],['Mini 烤肉',122,8784],
-  ['Set 9',27,2565],['Set 2',23,2040],['Set 7',29,2233],['Set 11',27,2700],['Set 8',20,1760],['Set 10',16,1584],
-  ['Mini 雙層烤肉',78,6104],['Mini雞肉',74,5032],['Mini 綜合麵包',72,5688],['火腿麵包 / Ham',38,3040],
-  ['Mini 火腿麵包',16,896],['加 起司 Cheese',42,630],['加 雞肉 Chicken',17,425],['加 烤肉 Grilled Meat',9,225],
-  ['加 燒肉 Braised Pork',7,140],['加 火腿 Ham',2,40],['越南咖啡',7,336],['可樂 Cocacola',1,37],
-  ['豆漿 Soy Milk',1,37],['麵包',4,150],['Th',1,30],
+  ['燒肉麵包 / Braised Pork',414,33190],['Cheese 雙層烤肉',310,35650],['烤肉麵包 Grilled Meat',287,30135],
+  ['Mini 烤肉',216,12096],['綜合麵包 / Mixed',168,21840],['雞肉麵包 / Chicken',146,14600],
+  ['Set 5',145,19575],['Set 4',144,18432],['Mini 燒肉',142,10224],['Set1',198,17820],
+  ['Set 6',102,14484],['Set 3',100,11800],['Mini 雙層烤肉',89,7031],['Mini雞肉',90,6120],
+  ['Mini 綜合麵包',89,6962],['Mini 火腿麵包',19,1064],['火腿麵包 / Ham',46,3680],
+  ['Set 7',37,2849],['Set 9',33,3135],['Set 11',30,3000],['Set 8',28,2464],
+  ['Set 2',31,2760],['Set 10',25,2475],['加 起司 Cheese',54,810],
+  ['加 雞肉 Chicken',19,475],['加 燒肉 Braised Pork',13,260],['加 烤肉 Grilled Meat',10,250],
+  ['越南咖啡 Coffee',12,576],['加 火腿 Ham',2,40],['可樂 Cocacola',1,37],
+  ['豆漿 Soy Milk',1,37],['麵包',4,150],['Th',1,30],['紅茶 Black Tea',1,37],
 ];
 
 const CATEGORIES = ['','麵包/法棍','肉類','蔬菜/配料','醬料/調味','飲品','包材','乳製品','其他'];
@@ -554,7 +556,7 @@ const CATEGORIES = ['','麵包/法棍','肉類','蔬菜/配料','醬料/調味',
 const fmt = n => n == null ? '—' : '$' + Math.round(n).toLocaleString();
 const pct = (a,b) => b ? (a/b*100).toFixed(1)+'%' : '—';
 
-let currentMonth = 5;
+let currentMonth = 6;
 
 // ── Nav date ──
 document.getElementById('navDate').textContent = new Date().toLocaleDateString('zh-TW');
@@ -668,7 +670,7 @@ function updateSummaryTable() {
 
 // ── Products table ──
 function buildProducts() {
-  const total = 241723;
+  const total = 284088;
   const sorted = [...PRODUCTS].sort((a,b)=>b[2]-a[2]);
   const tb = document.getElementById('productTable');
   sorted.forEach((p,i) => {
