@@ -356,34 +356,36 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   </div>
 </div>
 
-<!-- 燈箱預覽 -->
-<!-- 燈箱預覽（支援圖片 + Google Drive iframe） -->
-<div id="lightbox" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:9999;flex-direction:column;">
-  <!-- 工具列 -->
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;flex-shrink:0;">
-    <div id="lb-caption" style="color:#e8eaf0;font-size:12px;opacity:0.7;"></div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <div id="lb-zoom-controls" style="display:flex;gap:8px;align-items:center;">
-        <button onclick="lbZoom(0.8)"  style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;">−</button>
-        <span id="lb-zoom-label" style="color:#fff;font-size:11px;min-width:40px;text-align:center;font-family:monospace;">100%</span>
-        <button onclick="lbZoom(1.25)" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;">＋</button>
-        <button onclick="lbReset()"    style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:13px;">⟳</button>
+<!-- 浮動預覽視窗（可拖曳，不擋背景） -->
+<div id="lightbox" style="display:none;position:fixed;bottom:20px;right:20px;width:420px;height:460px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:9999;flex-direction:column;resize:both;overflow:hidden;min-width:280px;min-height:300px;">
+  <!-- 標題列（拖曳用） -->
+  <div id="lb-titlebar" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--border);cursor:move;flex-shrink:0;user-select:none;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:11px;color:var(--muted);" id="lb-caption">發票預覽</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <div id="lb-zoom-controls" style="display:flex;gap:4px;align-items:center;">
+        <button onclick="lbZoom(0.8)"  style="background:var(--surface2);border:1px solid var(--border);color:var(--text);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;">−</button>
+        <span id="lb-zoom-label" style="color:var(--muted);font-size:10px;min-width:34px;text-align:center;font-family:monospace;">100%</span>
+        <button onclick="lbZoom(1.25)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;">＋</button>
+        <button onclick="lbReset()"    style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:12px;">⟳</button>
       </div>
-      <button onclick="closeLightbox()" style="background:rgba(240,101,101,0.8);border:none;color:#fff;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px;font-weight:700;">✕</button>
+      <button onclick="closeLightbox()" style="background:rgba(240,101,101,0.2);border:1px solid var(--red);color:var(--red);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">✕</button>
     </div>
   </div>
   <!-- 圖片模式 -->
   <div id="lb-viewport" style="flex:1;overflow:hidden;position:relative;cursor:grab;user-select:none;display:none;">
     <img id="lb-img" draggable="false"
-      style="position:absolute;transform-origin:0 0;max-width:none;border-radius:6px;"
+      style="position:absolute;transform-origin:0 0;max-width:none;"
       onload="lbFitImage()" />
   </div>
   <!-- Drive iframe 模式 -->
-  <div id="lb-iframe-wrap" style="flex:1;padding:0 20px 16px;display:none;">
-    <iframe id="lb-iframe" style="width:100%;height:100%;border:none;border-radius:8px;background:#fff;" allowfullscreen></iframe>
+  <div id="lb-iframe-wrap" style="flex:1;padding:8px;display:none;">
+    <iframe id="lb-iframe" style="width:100%;height:100%;border:none;border-radius:6px;background:#fff;" allowfullscreen></iframe>
   </div>
-  <div id="lb-hint" style="text-align:center;padding:6px;font-size:11px;color:rgba(255,255,255,0.3);flex-shrink:0;">
-    滾輪縮放 · 拖曳平移 · ESC 關閉
+  <!-- 提示 -->
+  <div id="lb-hint" style="text-align:center;padding:4px;font-size:10px;color:var(--muted);flex-shrink:0;border-top:1px solid var(--border);">
+    滾輪縮放 · 拖曳平移 · 右下角可調整大小
   </div>
 </div>
 
@@ -674,7 +676,7 @@ function updateSummaryTable() {
 
 // ── Products table ──
 function buildProducts() {
-  const total = 284088;
+  const total = 241723;
   const sorted = [...PRODUCTS].sort((a,b)=>b[2]-a[2]);
   const tb = document.getElementById('productTable');
   sorted.forEach((p,i) => {
@@ -773,7 +775,7 @@ async function uploadFiles(files) {
         status.innerHTML = `✅ 上傳成功：${file.name}`;
         status.style.color = 'var(--green)';
         // 立即插入一行到表格頂部，不等 Sheets 更新
-        insertPendingRow(file, data.thumbUrl || '');
+        insertPendingRow(file, data.thumbUrl || '', data.ocr || {});
       } else {
         status.innerHTML = `❌ 失敗：${data.msg || '未知錯誤'}`;
         status.style.color = 'var(--red)';
@@ -791,7 +793,7 @@ async function uploadFiles(files) {
 }
 
 // 上傳成功後立即插入一行（本地預覽，無需等 Sheets）
-function insertPendingRow(file, thumbUrl) {
+function insertPendingRow(file, thumbUrl, ocr) {
   const tbody = document.getElementById('inv-tbody');
   if (!tbody) return;
   document.getElementById('inv-table').style.display = 'table';
@@ -801,7 +803,17 @@ function insertPendingRow(file, thumbUrl) {
   const dateStr = now.toLocaleDateString('zh-TW', { year:'numeric', month:'2-digit', day:'2-digit' });
   const timeStr = now.toLocaleTimeString('zh-TW', { hour:'2-digit', minute:'2-digit', hour12:false });
 
-  // 本地預覽縮圖（直接用 FileReader）
+  // OCR 結果
+  const ocrAmt  = ocr && ocr.amount ? ocr.amount : '';
+  const ocrDate = ocr && ocr.date   ? ocr.date.replace(/\//g,'-') : '';
+  const ocrNote = ocr && ocr.store  ? ocr.store : '';
+  const ocrCat  = ocr && ocr.items  ? autoDetectCategory(ocr.items, ocr.store) : '';
+
+  const catOpts = CATEGORIES.map(c =>
+    `<option value="${c}" ${c===ocrCat?'selected':''}>${c||'— 選擇品項 —'}</option>`
+  ).join('');
+
+  // 本地預覽縮圖
   const reader = new FileReader();
   reader.onload = () => {
     const localSrc = reader.result;
@@ -816,20 +828,38 @@ function insertPendingRow(file, thumbUrl) {
       <td><div>${thumb}</div></td>
       <td class="L" style="font-size:11px;">${dateStr} ${timeStr}</td>
       <td class="L">網頁上傳</td>
+      <td>
+        <input type="date" value="${ocrDate}"
+          style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;width:126px;"/>
+      </td>
       <td><div style="display:flex;align-items:center;gap:3px;">
         <span style="color:var(--muted);font-size:10px;">$</span>
-        <input type="number" placeholder="填入"
+        <input type="number" value="${ocrAmt}" placeholder="填入"
           style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
       </div></td>
       <td><select style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;max-width:115px;">
-        ${CATEGORIES.map(c=>`<option>${c||'— 選擇品項 —'}</option>`).join('')}
+        ${catOpts}
       </select></td>
-      <td class="L"><input type="text" placeholder="備注"
+      <td class="L"><input type="text" value="${ocrNote}" placeholder="備注"
         style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/></td>
     `;
     tbody.insertBefore(tr, tbody.firstChild);
   };
   reader.readAsDataURL(file);
+}
+
+// 前端自動分類（對應 GAS 的 autoCategory）
+function autoDetectCategory(items, store) {
+  const t = (items||[]).join(' ') + ' ' + (store||'');
+  if (/麵包|法棍|bm|bánh mì/i.test(t)) return '麵包/法棍';
+  if (/豬|雞|牛|肉|pork|chicken|meat|ham|火腿|thịt/i.test(t)) return '肉類';
+  if (/鹽|胡椒|醬|辣|蠔油|魚露|mayo|sauce|chilli|pepper/i.test(t)) return '醬料/調味';
+  if (/蔬菜|蘿蔔|黃瓜|番茄|青菜|rau|củ|cà/i.test(t)) return '蔬菜/配料';
+  if (/可樂|咖啡|茶|豆漿|coffee|cola|drink|nước|trà/i.test(t)) return '飲品';
+  if (/起司|乳|cheese|milk|sữa/i.test(t)) return '乳製品';
+  if (/袋|包裝|box|bag|bao/i.test(t)) return '包材';
+  if (/清潔|洗碗|消毒/i.test(t)) return '清潔用品';
+  return '';
 }
 
 function handleFileSelect(e) { uploadFiles(e.target.files); }
@@ -971,6 +1001,33 @@ lbVp.addEventListener('touchmove', e => {
   }
 }, { passive: false });
 
+// ── 燈箱視窗拖曳 ──
+(function() {
+  let dragging = false, ox = 0, oy = 0;
+  const bar = document.getElementById('lb-titlebar');
+  const box = document.getElementById('lightbox');
+  bar.addEventListener('mousedown', e => {
+    dragging = true;
+    const r = box.getBoundingClientRect();
+    ox = e.clientX - r.left;
+    oy = e.clientY - r.top;
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const x = Math.max(0, Math.min(window.innerWidth  - box.offsetWidth,  e.clientX - ox));
+    const y = Math.max(0, Math.min(window.innerHeight - box.offsetHeight, e.clientY - oy));
+    box.style.right  = 'auto';
+    box.style.bottom = 'auto';
+    box.style.left   = x + 'px';
+    box.style.top    = y + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    dragging = false;
+    document.body.style.userSelect = '';
+  });
+})();
+
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
 // ── 欄位儲存 ──
@@ -1036,7 +1093,7 @@ async function loadInvoices() {
       const amt      = cached.amount   ?? r['金額']     ?? '';
       const cat      = cached.category ?? r['品項類別'] ?? '';
       const note     = cached.note     ?? r['備注']     ?? '';
-      const buyDate  = cached.buydate  ?? r['發票日期'] ?? '';
+      const buyDate  = (cached.buydate  ?? r['發票日期'] ?? '').replace(/\//g, '-');
       const thumbUrl = r['縮圖連結']   || '';
       const driveUrl = r['Drive連結']  || '';
 
@@ -1111,6 +1168,7 @@ async function loadInvoices() {
       '⚠️ 載入失敗<br><span style="font-size:11px;">'+e.message+'</span>';
   }
 }
+
 
 // ── i18n 語言系統 ──
 const I18N = {
