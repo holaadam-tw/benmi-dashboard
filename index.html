@@ -841,7 +841,7 @@ function insertPendingRow(file, thumbUrl, ocr) {
         ${catOpts}
       </select></td>
       <td class="L"><input type="text" value="${ocrNote}" placeholder="備注"
-        style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/></td>
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/></td>
     `;
     tbody.insertBefore(tr, tbody.firstChild);
   };
@@ -1170,7 +1170,7 @@ async function loadInvoices() {
         <td class="L">
           <input type="text" value="${note}" placeholder="備注"
             onchange="saveField('${key}',${gasRow},'note',this.value)"
-            style="width:80px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
         </td>
       </tr>`;
     });

@@ -293,7 +293,7 @@ function logToSheet(timestamp, senderName, fileName, fileUrl, thumbUrl, hashVal,
     ocr && ocr.amount ? ocr.amount : '',  // H 金額（OCR）
     category,                             // I 品項類別（自動分類）
     buyDate,                              // J 購買日期（OCR，格式YYYY-MM-DD）
-    ocr && ocr.store  ? ocr.store : '',  // K 備注（store）
+    '',                                   // K 備注（留空，供手動填寫）
     thumbUrl,
     hashVal,
   ]);
