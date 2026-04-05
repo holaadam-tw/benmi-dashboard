@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(certutil -hashfile \"微信图片_20260328000208.jpg\" SHA256)",
+      "Bash(certutil -hashfile \"微信图片_20260327235759.jpg\" SHA256)"
+    ]
+  }
+}
