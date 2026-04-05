@@ -1,15 +1,30 @@
 // ================================================================
-// 本米股份有限公司 — 發票自動記錄 LINE Bot v4（含 Gemini OCR）
+// 本米股份有限公司 — 發票自動記錄 LINE Bot v4（含 Claude OCR）
 // 欄位：A:日期 B:時間 C:傳送者 D:類型 E:檔名 F:Drive連結
 //       G:月份 H:金額 I:品項類別 J:購買日期 K:備注 L:縮圖連結 M:hash
 // ================================================================
 
+// API keys 存放在 Script Properties（不寫在程式碼裡）
+// 首次部署請執行 setupProperties() 設定金鑰
 const CONFIG = {
-  LINE_CHANNEL_ACCESS_TOKEN: 'SC76wZD86KiT9z0ZQT/o5VIctGF3lPk12LzujwPWVgJpA1ns1Ay/9EjCXJr/1SXDdwg3IQq+gqfW5yM+jAlb6UTJxLyuitOjyxxy5Kuj4bKq2eS3KNANglD1wLZ4HclIa8+ZmgC4qkUCR3PdThBu9gdB04t89/1O/w1cDnyilFU=',
-  GEMINI_API_KEY: 'AIzaSyCAIGxHLCpiKNhTycIttIJx0QaxJKkJ3n8',
+  get LINE_CHANNEL_ACCESS_TOKEN() { return PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_ACCESS_TOKEN'); },
+  get CLAUDE_API_KEY()            { return PropertiesService.getScriptProperties().getProperty('CLAUDE_API_KEY'); },
   FOLDER_NAME: '本米發票記錄',
   SHEET_NAME:  '發票記錄',
 };
+
+/**
+ * 首次部署時在 Apps Script 編輯器執行一次此函式，設定 API 金鑰。
+ * 執行後金鑰會安全存放在 Script Properties 中。
+ */
+function setupProperties() {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperties({
+    'LINE_CHANNEL_ACCESS_TOKEN': '在此貼上 LINE Channel Access Token',
+    'CLAUDE_API_KEY':            '在此貼上 Claude API Key',
+  });
+  Logger.log('✅ Script Properties 已設定完成');
+}
 
 // ================================================================
 // GET：Webhook 驗證 + Dashboard 欄位更新
@@ -180,69 +195,71 @@ function handleLineImage(messageId, senderName, timestamp, replyToken) {
 }
 
 // ================================================================
-// Gemini OCR — 金額優先，同時抓日期、店家、品項
+// Claude OCR — 使用 Claude Sonnet 4.5 API 辨識發票
 // ================================================================
 function recognizeInvoice(imageBase64) {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=' + CONFIG.GEMINI_API_KEY;
+  const url = 'https://api.anthropic.com/v1/messages';
 
-  // 第一步：只問金額（最重要，單獨問準確率高）
-  const amountPrompt = `這是一張收據或發票。
-請找出「合計」、「總計」、「Total」、「總金額」、「金額合計」或最大的金額數字。
-只回傳一個純數字（不含貨幣符號、逗號、空格），例如：1134
-如果完全看不到金額就回傳 null`;
+  const prompt = `這是一張收據或發票的照片。請仔細辨識後用JSON格式回傳以下資訊：
+{
+  "amount": 合計金額（純數字，找「合計」「總計」「Total」「金額合計」，取最大那個數字，例如：1134），
+  "store": "店家或供應商名稱",
+  "date": "日期（格式：YYYY/MM/DD）",
+  "items": ["品項1", "品項2", "品項3"]
+}
 
-  const detailPrompt = `這是一張收據或發票。請用JSON格式回傳以下資訊（無法辨識的欄位填null）：
-{"store":"店家或供應商名稱","date":"日期YYYY/MM/DD格式","items":["品項1","品項2"]}
-只回傳JSON，不要其他文字，items最多5項`;
+注意事項：
+- amount 只填數字，例如 1134，無法辨識填 null
+- 支援中文、越南文、英文混合發票
+- items 最多5項主要品項
+- 只回傳JSON，不要其他文字`;
 
-  const makePayload = (prompt) => ({
-    contents: [{
-      parts: [
-        { text: prompt },
-        { inline_data: { mime_type: 'image/jpeg', data: imageBase64 } }
+  const payload = {
+    model: 'claude-sonnet-4-5',
+    max_tokens: 512,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/jpeg',
+            data: imageBase64
+          }
+        },
+        { type: 'text', text: prompt }
       ]
-    }],
-    generationConfig: { temperature: 0, maxOutputTokens: 256 }
-  });
+    }]
+  };
 
   const opts = {
     method: 'post',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': CONFIG.CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    payload: JSON.stringify(payload),
     muteHttpExceptions: true
   };
 
-  let amount = null;
-  let store  = null;
-  let date   = null;
-  let items  = [];
-
-  // 辨識金額
   try {
-    opts.payload = JSON.stringify(makePayload(amountPrompt));
-    const r1   = UrlFetchApp.fetch(url, opts);
-    const j1   = JSON.parse(r1.getContentText());
-    const raw1 = (j1.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
-    const num  = parseFloat(raw1.replace(/[^0-9.]/g, ''));
-    if (!isNaN(num) && num > 0) amount = num;
+    const response = UrlFetchApp.fetch(url, opts);
+    const result   = JSON.parse(response.getContentText());
+    const text     = result.content?.[0]?.text || '';
+    const cleaned  = text.replace(/```json|```/g, '').trim();
+    const parsed   = JSON.parse(cleaned);
+    return {
+      amount: parsed.amount || null,
+      store:  parsed.store  || null,
+      date:   parsed.date   || null,
+      items:  parsed.items  || []
+    };
   } catch(e) {
-    Logger.log('OCR amount error: ' + e);
+    Logger.log('Claude OCR error: ' + e.toString());
+    return { amount: null, store: null, date: null, items: [] };
   }
-
-  // 辨識其他欄位
-  try {
-    opts.payload = JSON.stringify(makePayload(detailPrompt));
-    const r2   = UrlFetchApp.fetch(url, opts);
-    const j2   = JSON.parse(r2.getContentText());
-    const raw2 = (j2.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/```json|```/g,'').trim();
-    const parsed = JSON.parse(raw2);
-    store = parsed.store || null;
-    date  = parsed.date  || null;
-    items = parsed.items || [];
-  } catch(e) {
-    Logger.log('OCR detail error: ' + e);
-  }
-
-  return { amount, store, date, items };
 }
 
 // ================================================================
