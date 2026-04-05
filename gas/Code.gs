@@ -186,7 +186,11 @@ function handleLineImage(messageId, senderName, timestamp, replyToken) {
 function recognizeInvoice(imageBase64) {
   const url = 'https://api.anthropic.com/v1/messages';
 
-  const prompt = `這是一張收據或發票的照片。請仔細辨識後用JSON格式回傳以下資訊：
+  const prompt = `無論圖片內容是什麼，你必須只回傳純 JSON，格式如下，無法辨識的欄位填 null：
+{"amount":null,"store":null,"date":null,"items":[]}
+絕對不能回傳任何說明文字。
+
+這是一張收據或發票的照片。請仔細辨識後用JSON格式回傳以下資訊：
 {
   "amount": 合計金額（純數字，找「合計」「總計」「Total」「金額合計」，取最大那個數字，例如：1134），
   "store": "店家或供應商名稱",
@@ -235,13 +239,18 @@ function recognizeInvoice(imageBase64) {
     const result   = JSON.parse(response.getContentText());
     const text     = result.content?.[0]?.text || '';
     const cleaned  = text.replace(/```json|```/g, '').trim();
-    const parsed   = JSON.parse(cleaned);
-    return {
-      amount: parsed.amount || null,
-      store:  parsed.store  || null,
-      date:   parsed.date   || null,
-      items:  parsed.items  || []
-    };
+    try {
+      const parsed = JSON.parse(cleaned);
+      return {
+        amount: parsed.amount || null,
+        store:  parsed.store  || null,
+        date:   parsed.date   || null,
+        items:  parsed.items  || []
+      };
+    } catch(jsonErr) {
+      Logger.log('Claude OCR JSON parse failed, raw text: ' + cleaned);
+      return { amount: null, store: null, date: null, items: [], _rawText: cleaned };
+    }
   } catch(e) {
     Logger.log('Claude OCR error: ' + e.toString());
     return { amount: null, store: null, date: null, items: [] };
@@ -482,7 +491,26 @@ function batchOCR() {
       const base64   = Utilities.base64Encode(bytes);
 
       // OCR 辨識
-      const ocr = recognizeInvoice(base64);
+      let ocr;
+      try {
+        ocr = recognizeInvoice(base64);
+      } catch(ocrErr) {
+        // recognizeInvoice 內部 JSON 解析失敗時，嘗試從原始回傳文字抓數字當 amount
+        Logger.log('⚠️ 第 ' + i + ' 筆 OCR JSON 解析失敗，嘗試 regex fallback：' + ocrErr.toString());
+        ocr = { amount: null, store: null, date: null, items: [] };
+      }
+
+      // 如果 OCR 回傳的 amount 仍為 null，嘗試用 regex 從 rawText 補救
+      if (!ocr.amount && ocr._rawText) {
+        const numMatch = ocr._rawText.match(/(\d[\d,]*\.?\d*)/g);
+        if (numMatch) {
+          const nums = numMatch.map(s => parseFloat(s.replace(/,/g, ''))).filter(n => n > 0);
+          if (nums.length) {
+            ocr.amount = Math.max(...nums);
+            Logger.log('⚠️ 第 ' + i + ' 筆 regex fallback 金額=' + ocr.amount);
+          }
+        }
+      }
 
       // 寫回試算表
       if (ocr.amount) {
