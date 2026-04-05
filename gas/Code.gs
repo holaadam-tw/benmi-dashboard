@@ -1,56 +1,22 @@
 // ================================================================
-// 本米股份有限公司 — 發票自動記錄 LINE Bot v4（含 Claude OCR）
+// 本米股份有限公司 — 發票自動記錄 LINE Bot v4（含 Gemini OCR）
 // 欄位：A:日期 B:時間 C:傳送者 D:類型 E:檔名 F:Drive連結
 //       G:月份 H:金額 I:品項類別 J:購買日期 K:備注 L:縮圖連結 M:hash
 // ================================================================
 
-// API keys 存放在 Script Properties（不寫在程式碼裡）
-// 首次部署請執行 setupProperties() 設定金鑰
+const PROPS = PropertiesService.getScriptProperties();
 const CONFIG = {
-  get LINE_CHANNEL_ACCESS_TOKEN() { return PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_ACCESS_TOKEN'); },
-  get CLAUDE_API_KEY()            { return PropertiesService.getScriptProperties().getProperty('CLAUDE_API_KEY'); },
+  LINE_CHANNEL_ACCESS_TOKEN: PROPS.getProperty('LINE_CHANNEL_ACCESS_TOKEN'),
+  CLAUDE_API_KEY: PROPS.getProperty('CLAUDE_API_KEY'),
   FOLDER_NAME: '本米發票記錄',
   SHEET_NAME:  '發票記錄',
 };
-
-/**
- * 首次部署時在 Apps Script 編輯器執行一次此函式，設定 API 金鑰。
- * 執行後金鑰會安全存放在 Script Properties 中。
- */
-function setupProperties() {
-  const props = PropertiesService.getScriptProperties();
-  props.setProperties({
-    'LINE_CHANNEL_ACCESS_TOKEN': '在此貼上 LINE Channel Access Token',
-    'CLAUDE_API_KEY':            '在此貼上 Claude API Key',
-  });
-  Logger.log('✅ Script Properties 已設定完成');
-}
 
 // ================================================================
 // GET：Webhook 驗證 + Dashboard 欄位更新
 // ================================================================
 function doGet(e) {
   const p = (e && e.parameter) ? e.parameter : {};
-  if (p.action === 'getData') {
-    try {
-      const sheet = getOrCreateSheet(getOrCreateSpreadsheet());
-      const data  = sheet.getDataRange().getValues();
-      const headers = data[0];
-      const rows = data.slice(1).map(row => {
-        const obj = {};
-        headers.forEach((h, i) => {
-          const v = row[i];
-          obj[h] = v instanceof Date
-            ? Utilities.formatDate(v, 'Asia/Taipei', 'yyyy/MM/dd')
-            : (v || '');
-        });
-        return obj;
-      }).filter(r => r['日期']);
-      return json({ status: 'ok', rows });
-    } catch(err) {
-      return json({ status: 'error', msg: err.message });
-    }
-  }
   if (p.action === 'update') {
     try {
       const row   = parseInt(p.row);
@@ -215,7 +181,7 @@ function handleLineImage(messageId, senderName, timestamp, replyToken) {
 }
 
 // ================================================================
-// Claude OCR — 使用 Claude Sonnet 4.5 API 辨識發票
+// Gemini OCR — 改用 Claude claude-sonnet-4-5 API，辨識更準確
 // ================================================================
 function recognizeInvoice(imageBase64) {
   const url = 'https://api.anthropic.com/v1/messages';
@@ -282,6 +248,9 @@ function recognizeInvoice(imageBase64) {
   }
 }
 
+// ================================================================
+// 自動品項分類
+// ================================================================
 function autoCategory(items, store) {
   const text = (items || []).join(' ') + ' ' + (store || '');
   const t = text.toLowerCase();
@@ -292,7 +261,7 @@ function autoCategory(items, store) {
   if (/可樂|咖啡|茶|豆漿|coffee|cola|drink|nước|trà/i.test(t)) return '飲品';
   if (/起司|乳|cheese|milk|sữa/i.test(t)) return '乳製品';
   if (/袋|包裝|box|bag|bao/i.test(t)) return '包材';
-  if (/清潔|洗碗|消毒/i.test(t)) return '清潔用品';
+  if (/清潔|洗碗|消毒|清洗/i.test(t)) return '清潔用品';
   return '';
 }
 
@@ -301,6 +270,9 @@ function autoCategory(items, store) {
 // ================================================================
 function logToSheet(timestamp, senderName, fileName, fileUrl, thumbUrl, hashVal, ocr) {
   const sheet = getOrCreateSheet(getOrCreateSpreadsheet());
+  // 日期格式轉換：YYYY/MM/DD → YYYY-MM-DD（HTML date input 需要）
+  const buyDate = ocr && ocr.date ? ocr.date.replace(/\//g, '-') : '';
+  const category = ocr ? autoCategory(ocr.items, ocr.store) : '';
   sheet.appendRow([
     Utilities.formatDate(timestamp, 'Asia/Taipei', 'yyyy/MM/dd'),
     Utilities.formatDate(timestamp, 'Asia/Taipei', 'HH:mm'),
@@ -310,9 +282,9 @@ function logToSheet(timestamp, senderName, fileName, fileUrl, thumbUrl, hashVal,
     fileUrl,
     Utilities.formatDate(timestamp, 'Asia/Taipei', 'yyyy-MM'),
     ocr && ocr.amount ? ocr.amount : '',  // H 金額（OCR）
-    autoCategory(ocr ? ocr.items : [], ocr ? ocr.store : ''),  // I 品項類別（自動）
-    ocr && ocr.date ? ocr.date.replace(/\//g, '-') : '',       // J 購買日期（YYYY-MM-DD）
-    ocr && ocr.store  ? ocr.store : '',  // K 備注（用store暫放）
+    category,                             // I 品項類別（自動分類）
+    buyDate,                              // J 購買日期（OCR，格式YYYY-MM-DD）
+    ocr && ocr.store  ? ocr.store : '',  // K 備注（store）
     thumbUrl,
     hashVal,
   ]);
@@ -470,4 +442,73 @@ function json(obj) {
 }
 function ok() {
   return ContentService.createTextOutput(JSON.stringify({ status:'ok' })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ================================================================
+// 批次 OCR 補辨識 — 在 Apps Script 手動執行一次
+// 會處理所有「金額空白」的記錄，自動補上金額、購買日期、品項類別
+// ================================================================
+function batchOCR() {
+  const sheet  = getOrCreateSheet(getOrCreateSpreadsheet());
+  const data   = sheet.getDataRange().getValues();
+  const props  = PropertiesService.getScriptProperties();
+
+  let processed = 0, success = 0, failed = 0;
+
+  Logger.log('開始批次 OCR，共 ' + (data.length - 1) + ' 筆記錄');
+
+  for (let i = 1; i < data.length; i++) {
+    const amount   = data[i][7];  // H: 金額
+    const driveUrl = data[i][5];  // F: Drive連結
+    const fileName = data[i][4];  // E: 檔名
+
+    // 只處理金額空白的記錄
+    if (amount !== '' && amount !== null) continue;
+    if (!driveUrl) continue;
+
+    processed++;
+    Logger.log('處理第 ' + i + ' 筆：' + fileName);
+
+    try {
+      // 從 Drive URL 取得 File ID
+      const match = driveUrl.match(/\/d\/([^\/\?]+)/);
+      if (!match) { failed++; continue; }
+      const fileId = match[1];
+
+      // 下載圖片
+      const file     = DriveApp.getFileById(fileId);
+      const blob     = file.getBlob();
+      const bytes    = blob.getBytes();
+      const base64   = Utilities.base64Encode(bytes);
+
+      // OCR 辨識
+      const ocr = recognizeInvoice(base64);
+
+      // 寫回試算表
+      if (ocr.amount) {
+        sheet.getRange(i + 1, 8).setValue(ocr.amount);
+        success++;
+      }
+      if (ocr.date) {
+        sheet.getRange(i + 1, 10).setValue(ocr.date.replace(/\//g, '-'));
+      }
+      if (ocr.store || ocr.items) {
+        const cat = autoCategory(ocr.items || [], ocr.store || '');
+        if (cat) sheet.getRange(i + 1, 9).setValue(cat);
+        if (ocr.store) sheet.getRange(i + 1, 11).setValue(ocr.store);
+      }
+
+      Logger.log('✅ 第 ' + i + ' 筆完成：金額=' + ocr.amount + ', 日期=' + ocr.date + ', 店家=' + ocr.store);
+
+      // 避免 API 限速，每筆間隔 1 秒
+      Utilities.sleep(1000);
+
+    } catch(e) {
+      failed++;
+      Logger.log('❌ 第 ' + i + ' 筆失敗：' + e.toString());
+    }
+  }
+
+  const msg = '批次 OCR 完成！\n處理：' + processed + ' 筆\n成功：' + success + ' 筆\n失敗：' + failed + ' 筆';
+  Logger.log(msg);
 }
