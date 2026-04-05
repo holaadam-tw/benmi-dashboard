@@ -262,6 +262,20 @@ function recognizeInvoice(imageBase64) {
   }
 }
 
+function autoCategory(items, store) {
+  const text = (items || []).join(' ') + ' ' + (store || '');
+  const t = text.toLowerCase();
+  if (/麵包|法棍|bm|bánh mì/i.test(t)) return '麵包/法棍';
+  if (/豬|雞|牛|肉|pork|chicken|meat|ham|火腿|thịt/i.test(t)) return '肉類';
+  if (/鹽|胡椒|醬|辣|蠔油|魚露|mayo|sauce|chilli|pepper/i.test(t)) return '醬料/調味';
+  if (/蔬菜|蘿蔔|黃瓜|番茄|青菜|rau|củ|cà/i.test(t)) return '蔬菜/配料';
+  if (/可樂|咖啡|茶|豆漿|coffee|cola|drink|nước|trà/i.test(t)) return '飲品';
+  if (/起司|乳|cheese|milk|sữa/i.test(t)) return '乳製品';
+  if (/袋|包裝|box|bag|bao/i.test(t)) return '包材';
+  if (/清潔|洗碗|消毒/i.test(t)) return '清潔用品';
+  return '';
+}
+
 // ================================================================
 // 記錄到試算表（含 OCR）
 // ================================================================
@@ -276,8 +290,8 @@ function logToSheet(timestamp, senderName, fileName, fileUrl, thumbUrl, hashVal,
     fileUrl,
     Utilities.formatDate(timestamp, 'Asia/Taipei', 'yyyy-MM'),
     ocr && ocr.amount ? ocr.amount : '',  // H 金額（OCR）
-    '',                                   // I 品項類別
-    ocr && ocr.date   ? ocr.date  : '',  // J 購買日期（OCR）
+    autoCategory(ocr ? ocr.items : [], ocr ? ocr.store : ''),  // I 品項類別（自動）
+    ocr && ocr.date ? ocr.date.replace(/\//g, '-') : '',       // J 購買日期（YYYY-MM-DD）
     ocr && ocr.store  ? ocr.store : '',  // K 備注（用store暫放）
     thumbUrl,
     hashVal,
