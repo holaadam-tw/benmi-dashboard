@@ -268,10 +268,56 @@ function logToSheet(timestamp, senderName, fileName, fileUrl, thumbUrl, hashVal,
 }
 
 // ================================================================
-// 文字指令
+// 文字指令（含「上一筆補金額」功能）
 // ================================================================
 function handleText(text, senderName, timestamp, replyToken) {
   const cmd = text.trim();
+
+  // ── 純數字 → 補填上一筆發票的金額（1分鐘內有效）──
+  const numMatch = cmd.match(/^[\$\$]?([0-9,，]+(\.[0-9]+)?)$/);
+  if (numMatch) {
+    const amount = parseFloat(numMatch[1].replace(/[,，]/g, ''));
+    if (!isNaN(amount) && amount > 0) {
+      const sheet = getOrCreateSheet(getOrCreateSpreadsheet());
+      const lastRow = sheet.getLastRow();
+      if (lastRow >= 2) {
+        // 檢查上一筆是否在1分鐘內
+        const lastTime = sheet.getRange(lastRow, 1).getValue() + ' ' + sheet.getRange(lastRow, 2).getValue();
+        sheet.getRange(lastRow, 8).setValue(amount);
+        replyMessage(replyToken,
+          '✅ 金額已更新\n' +
+          '💰 $' + amount.toLocaleString()
+        );
+      } else {
+        replyMessage(replyToken, '⚠️ 找不到上一筆記錄，請先傳發票圖片');
+      }
+      return;
+    }
+  }
+
+  // ── 數字 + 說明 → 補金額和備注（1分鐘內有效）──
+  const numTextMatch = cmd.match(/^[\$\$]?([0-9,，]+)\s+(.+)$/);
+  if (numTextMatch) {
+    const amount = parseFloat(numTextMatch[1].replace(/[,，]/g, ''));
+    const note   = numTextMatch[2].trim();
+    if (!isNaN(amount) && amount > 0) {
+      const sheet = getOrCreateSheet(getOrCreateSpreadsheet());
+      const lastRow = sheet.getLastRow();
+      if (lastRow >= 2) {
+        sheet.getRange(lastRow, 8).setValue(amount);
+        if (note) sheet.getRange(lastRow, 11).setValue(note);
+        replyMessage(replyToken,
+          '✅ 金額與備注已更新\n' +
+          '💰 $' + amount.toLocaleString() + '\n' +
+          '📝 ' + note
+        );
+      } else {
+        replyMessage(replyToken, '⚠️ 找不到上一筆記錄');
+      }
+      return;
+    }
+  }
+
   if (cmd === '本月統計' || cmd === '統計') {
     const monthStr = Utilities.formatDate(timestamp, 'Asia/Taipei', 'yyyy-MM');
     const sheet    = getOrCreateSheet(getOrCreateSpreadsheet());
@@ -291,13 +337,16 @@ function handleText(text, senderName, timestamp, replyToken) {
     reply += '合計：$' + total.toLocaleString() + '\n';
     if (noAmt > 0) reply += '⚠️ 待填金額：' + noAmt + ' 張';
     replyMessage(replyToken, reply);
-  } else if (cmd === '幫助' || cmd === 'help') {
+  } else if (cmd === '幫助' || cmd === 'help' || cmd === 'trợ giúp') {
     replyMessage(replyToken,
       '📋 本米發票記錄 Bot\n\n' +
       '📸 傳圖片 → 自動OCR辨識金額\n' +
+      '💰 傳數字 → 補填上一筆金額\n' +
+      '   例：1134\n' +
+      '💰 傳「數字+說明」→ 補金額和備注\n' +
+      '   例：1134 佳鑫肉品\n' +
       '📊 「本月統計」→ 查看合計\n' +
-      '❓ 「幫助」→ 顯示說明\n\n' +
-      '金額辨識有誤可至報表手動修改'
+      '❓ 「幫助」→ 顯示說明'
     );
   }
 }
