@@ -1011,10 +1011,10 @@ async function loadInvoices() {
 
     // KPIs
     const now = new Date();
-    const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    const thisMonth = now.getFullYear() + '/' + String(now.getMonth()+1).padStart(2,'0') + '/01';
     const monthRows = rows.filter(r => r['月份'] === thisMonth);
     document.getElementById('inv-count').textContent = monthRows.length;
-    document.getElementById('inv-month').textContent = thisMonth + ' 本月';
+    document.getElementById('inv-month').textContent = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + ' 本月';
     let totalAmt = 0;
     monthRows.forEach(r => {
       const key = r['日期'] + '_' + r['時間'];
@@ -1036,7 +1036,7 @@ async function loadInvoices() {
       const amt      = cached.amount   ?? r['金額']     ?? '';
       const cat      = cached.category ?? r['品項類別'] ?? '';
       const note     = cached.note     ?? r['備注']     ?? '';
-      const buyDate  = cached.buydate  ?? r['購買日期'] ?? '';
+      const buyDate  = cached.buydate  ?? r['發票日期'] ?? '';
       const thumbUrl = r['縮圖連結']   || '';
       const driveUrl = r['Drive連結']  || '';
 
