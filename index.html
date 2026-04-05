@@ -997,9 +997,10 @@ async function loadInvoices() {
   document.getElementById('inv-empty').style.display = 'none';
 
   try {
-    const res  = await fetch(SHEET_CSV + '&t=' + Date.now());
-    const text = await res.text();
-    const rows = parseCSV(text).filter(r => r['日期']);
+    const res  = await fetch(GAS_URL + '?action=getData&t=' + Date.now());
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error(data.msg || '載入失敗');
+    const rows = data.rows;
     const edits = getEdits();
 
     if (!rows.length) {

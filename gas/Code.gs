@@ -31,6 +31,21 @@ function setupProperties() {
 // ================================================================
 function doGet(e) {
   const p = (e && e.parameter) ? e.parameter : {};
+  if (p.action === 'getData') {
+    try {
+      const sheet = getOrCreateSheet(getOrCreateSpreadsheet());
+      const data  = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const rows = data.slice(1).map(row => {
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = row[i] || '');
+        return obj;
+      }).filter(r => r['日期']);
+      return json({ status: 'ok', rows });
+    } catch(err) {
+      return json({ status: 'error', msg: err.message });
+    }
+  }
   if (p.action === 'update') {
     try {
       const row   = parseInt(p.row);
