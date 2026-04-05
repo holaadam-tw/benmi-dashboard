@@ -206,7 +206,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <option value="3">2025年12月</option>
         <option value="4">2026年1月</option>
         <option value="5">2026年2月</option>
-        <option value="6" selected>2026年3月（進行中）</option>
+        <option value="6" selected>2026年3月</option>
       </select>
       <button onclick="changeMonth(1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;">▶</button>
     </div>
@@ -483,18 +483,18 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
 <div id="page-products" class="page">
   <div style="margin-bottom:20px;">
     <div style="font-size:22px;font-weight:700;">商品業績報表</div>
-    <div style="font-size:12px;color:var(--muted);margin-top:2px;">2026年3月26日 · 來源：POS 系統</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px;">2026年3月31日 · 來源：POS 系統</div>
   </div>
 
   <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
     <div class="kpi revenue">
       <div class="kpi-label">總銷售金額</div>
-      <div class="kpi-value">$241,723</div>
-      <div class="kpi-change">3月26日累計</div>
+      <div class="kpi-value">$284,088</div>
+      <div class="kpi-change">3月完整月份</div>
     </div>
     <div class="kpi" style="border-top:2px solid var(--green);">
       <div class="kpi-label">總商品數量</div>
-      <div class="kpi-value" style="color:var(--green);">2,549</div>
+      <div class="kpi-value" style="color:var(--green);">3,007</div>
       <div class="kpi-change">件</div>
     </div>
     <div class="kpi" style="border-top:2px solid var(--accent2);">
@@ -507,7 +507,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   <div class="table-box">
     <div class="table-header">
       <div class="table-title">商品銷售排行</div>
-      <div style="font-size:10px;color:var(--muted);">3月26日 · POS系統</div>
+      <div style="font-size:10px;color:var(--muted);">3月31日 · POS系統</div>
     </div>
     <table>
       <thead><tr>
@@ -527,7 +527,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
 <script>
 // ── Data ──
 const MONTHS = ['9月','10月','11月','12月','1月','2月','3月'];
-const MONTH_LABELS = ['2025年9月','2025年10月','2025年11月','2025年12月','2026年1月','2026年2月','2026年3月（進行中）'];
+const MONTH_LABELS = ['2025年9月','2025年10月','2025年11月','2025年12月','2026年1月','2026年2月','2026年3月'];
 const DATA = [
   { revenue:21837,  food:null,    salary:29735,  note:'開幕月（22/9起）' },
   { revenue:113163, food:50277,   salary:117990, note:'Uber上線' },
@@ -535,20 +535,18 @@ const DATA = [
   { revenue:313417, food:205585,  salary:103550, note:'首個月報月' },
   { revenue:393365, food:162040,  salary:153305, note:'最高業績' },
   { revenue:209409, food:83085,   salary:97935,  note:'' },
-  { revenue:284088, food:null,    salary:null,   note:'進行中' },
+  { revenue:284088, food:null,    salary:null,   note:'' },
 ];
 
 const PRODUCTS = [
-  ['燒肉麵包 / Braised Pork',414,33190],['Cheese 雙層烤肉',310,35650],['烤肉麵包 Grilled Meat',287,30135],
-  ['Mini 烤肉',216,12096],['綜合麵包 / Mixed',168,21840],['雞肉麵包 / Chicken',146,14600],
-  ['Set 5',145,19575],['Set 4',144,18432],['Mini 燒肉',142,10224],['Set1',198,17820],
-  ['Set 6',102,14484],['Set 3',100,11800],['Mini 雙層烤肉',89,7031],['Mini雞肉',90,6120],
-  ['Mini 綜合麵包',89,6962],['Mini 火腿麵包',19,1064],['火腿麵包 / Ham',46,3680],
-  ['Set 7',37,2849],['Set 9',33,3135],['Set 11',30,3000],['Set 8',28,2464],
-  ['Set 2',31,2760],['Set 10',25,2475],['加 起司 Cheese',54,810],
-  ['加 雞肉 Chicken',19,475],['加 燒肉 Braised Pork',13,260],['加 烤肉 Grilled Meat',10,250],
-  ['越南咖啡 Coffee',12,576],['加 火腿 Ham',2,40],['可樂 Cocacola',1,37],
-  ['豆漿 Soy Milk',1,37],['麵包',4,150],['Th',1,30],['紅茶 Black Tea',1,37],
+  ['Cheese 雙層烤肉',310,35650],['燒肉麵包 / Braised pork',414,33190],['烤肉麵包 Grilled Meat',287,30135],
+  ['綜合麵包 / Mixed',168,21840],['Set 5',145,19575],['Set 4',144,18432],['Set1',198,17820],['雞肉麵包 / Chicken',146,14600],
+  ['Set 6',102,14484],['Mini 燒肉',216,12096],['Set 3',100,11800],['Mini 烤肉',142,10224],
+  ['Mini 綜合麵包',89,7031],['Mini 雙層烤肉',89,6962],['Mini雞肉',90,6120],['火腿麵包 / Ham',46,3680],
+  ['Set 9',33,3135],['Set 11',30,3000],['Set 7',37,2849],['Set 2',31,2760],['Set 10',25,2475],['Set 8',28,2464],
+  ['Mini 火腿麵包',19,1064],['加 起司 Cheese',54,810],['越南咖啡',12,576],['加 雞肉 Chicken',19,475],
+  ['加 燒肉 Braised Pork',13,260],['加 烤肉 Grilled Meat',10,250],['麵包',4,150],['加 火腿 Ham',2,40],
+  ['可樂 Cocacola',1,37],['豆漿 Soy Milk',1,37],['紅茶 Black Tea',1,37],['Th',1,30],
 ];
 
 const CATEGORIES = ['','麵包/法棍','肉類','蔬菜/配料','醬料/調味','飲品','包材','乳製品','其他'];
