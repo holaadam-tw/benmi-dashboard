@@ -641,3 +641,93 @@ function batchOCR() {
   const msg = '批次 OCR 完成！\n處理：' + processed + ' 筆\n成功：' + success + ' 筆\n失敗：' + failed + ' 筆';
   Logger.log(msg);
 }
+
+// ================================================================
+// 一次性遷移：Google Sheets → Supabase
+// 在 Apps Script 編輯器手動執行一次即可
+// ================================================================
+function migrateToSupabase() {
+  const sheet = getOrCreateSheet(getOrCreateSpreadsheet());
+  const data  = sheet.getDataRange().getValues();
+
+  let migrated = 0, skipped = 0, failed = 0;
+  Logger.log('開始遷移，共 ' + (data.length - 1) + ' 筆記錄');
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    // A:日期 B:時間 C:傳送者 D:類型 E:檔名 F:Drive連結
+    // G:月份 H:金額 I:品項類別 J:購買日期 K:備注 L:縮圖連結 M:hash
+    const hashVal = row[12] || null;
+
+    // 用 hash 去重，已存在就跳過
+    if (hashVal) {
+      const existing = supabaseFindByHash(hashVal);
+      if (existing) {
+        skipped++;
+        continue;
+      }
+    }
+
+    // 日期格式：Sheets 可能是 Date 物件或字串
+    let uploadDate = row[0];
+    if (uploadDate instanceof Date) {
+      uploadDate = Utilities.formatDate(uploadDate, 'Asia/Taipei', 'yyyy-MM-dd');
+    } else if (typeof uploadDate === 'string' && uploadDate) {
+      uploadDate = uploadDate.replace(/\//g, '-');
+    } else {
+      uploadDate = null;
+    }
+
+    let uploadTime = row[1];
+    if (uploadTime instanceof Date) {
+      uploadTime = Utilities.formatDate(uploadTime, 'Asia/Taipei', 'HH:mm');
+    } else {
+      uploadTime = uploadTime ? String(uploadTime) : null;
+    }
+
+    let purchaseDate = row[9];
+    if (purchaseDate instanceof Date) {
+      purchaseDate = Utilities.formatDate(purchaseDate, 'Asia/Taipei', 'yyyy-MM-dd');
+    } else if (typeof purchaseDate === 'string' && purchaseDate) {
+      purchaseDate = purchaseDate.replace(/\//g, '-');
+    } else {
+      purchaseDate = null;
+    }
+
+    const amount = row[7] !== '' && row[7] !== null ? parseFloat(row[7]) || null : null;
+
+    const record = {
+      upload_date:   uploadDate,
+      upload_time:   uploadTime,
+      sender:        row[2] || null,
+      amount:        amount,
+      category:      row[8] || null,
+      purchase_date: purchaseDate,
+      note:          row[10] || null,
+      drive_url:     row[5] || null,
+      thumb_url:     row[11] || null,
+      file_hash:     hashVal,
+    };
+
+    try {
+      const result = supabaseInsert(record);
+      if (result) {
+        migrated++;
+      } else {
+        failed++;
+        Logger.log('❌ 第 ' + i + ' 筆插入失敗');
+      }
+    } catch(e) {
+      failed++;
+      Logger.log('❌ 第 ' + i + ' 筆錯誤：' + e.toString());
+    }
+
+    // 避免 rate limit
+    if (i % 50 === 0) {
+      Logger.log('進度：' + i + '/' + (data.length - 1));
+      Utilities.sleep(500);
+    }
+  }
+
+  Logger.log('遷移完成！成功：' + migrated + ' 筆，跳過（已存在）：' + skipped + ' 筆，失敗：' + failed + ' 筆');
+}
