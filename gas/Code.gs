@@ -8,9 +8,72 @@ const PROPS = PropertiesService.getScriptProperties();
 const CONFIG = {
   LINE_CHANNEL_ACCESS_TOKEN: PROPS.getProperty('LINE_CHANNEL_ACCESS_TOKEN'),
   CLAUDE_API_KEY: PROPS.getProperty('CLAUDE_API_KEY'),
+  SUPABASE_URL: PROPS.getProperty('SUPABASE_URL'),
+  SUPABASE_KEY: PROPS.getProperty('SUPABASE_KEY'),
   FOLDER_NAME: '本米發票記錄',
   SHEET_NAME:  '發票記錄',
 };
+
+// ================================================================
+// Supabase helpers
+// ================================================================
+function supabaseInsert(row) {
+  if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_KEY) return null;
+  try {
+    const res = UrlFetchApp.fetch(CONFIG.SUPABASE_URL + '/rest/v1/invoices', {
+      method: 'post',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': CONFIG.SUPABASE_KEY,
+        'Authorization': 'Bearer ' + CONFIG.SUPABASE_KEY,
+        'Prefer': 'return=representation'
+      },
+      payload: JSON.stringify(row),
+      muteHttpExceptions: true
+    });
+    const body = JSON.parse(res.getContentText());
+    if (Array.isArray(body) && body.length) return body[0];
+    Logger.log('Supabase insert response: ' + res.getContentText());
+    return null;
+  } catch(e) {
+    Logger.log('Supabase insert error: ' + e.toString());
+    return null;
+  }
+}
+
+function supabaseUpdate(id, fields) {
+  if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_KEY || !id) return;
+  try {
+    UrlFetchApp.fetch(CONFIG.SUPABASE_URL + '/rest/v1/invoices?id=eq.' + id, {
+      method: 'patch',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': CONFIG.SUPABASE_KEY,
+        'Authorization': 'Bearer ' + CONFIG.SUPABASE_KEY
+      },
+      payload: JSON.stringify(fields),
+      muteHttpExceptions: true
+    });
+  } catch(e) {
+    Logger.log('Supabase update error: ' + e.toString());
+  }
+}
+
+function supabaseFindByHash(hash) {
+  if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_KEY || !hash) return null;
+  try {
+    const res = UrlFetchApp.fetch(
+      CONFIG.SUPABASE_URL + '/rest/v1/invoices?file_hash=eq.' + encodeURIComponent(hash) + '&limit=1', {
+      headers: {
+        'apikey': CONFIG.SUPABASE_KEY,
+        'Authorization': 'Bearer ' + CONFIG.SUPABASE_KEY
+      },
+      muteHttpExceptions: true
+    });
+    const rows = JSON.parse(res.getContentText());
+    return (Array.isArray(rows) && rows.length) ? rows[0] : null;
+  } catch(e) { return null; }
+}
 
 // ================================================================
 // GET：Webhook 驗證 + Dashboard 欄位更新
@@ -25,6 +88,17 @@ function doGet(e) {
       if (p.category !== undefined && p.category !== '') sheet.getRange(row, 9).setValue(p.category);
       if (p.buydate  !== undefined && p.buydate  !== '') sheet.getRange(row, 10).setValue(p.buydate);
       if (p.note     !== undefined)                      sheet.getRange(row, 11).setValue(p.note);
+
+      // Sync to Supabase if id provided
+      if (p.id) {
+        const updates = {};
+        if (p.amount   !== undefined && p.amount   !== '') updates.amount = parseFloat(p.amount) || null;
+        if (p.category !== undefined && p.category !== '') updates.category = p.category;
+        if (p.buydate  !== undefined && p.buydate  !== '') updates.purchase_date = p.buydate;
+        if (p.note     !== undefined)                      updates.note = p.note;
+        supabaseUpdate(p.id, updates);
+      }
+
       return json({ status: 'ok', row });
     } catch(err) {
       return json({ status: 'error', msg: err.message });
@@ -64,8 +138,11 @@ function handleDashboardUpload(body) {
     const uploader    = body.uploader || 'Dashboard';
     const hashVal     = body.hash || '';
 
-    // 去重
+    // 去重：先查 Supabase，再查 Sheets
     if (hashVal) {
+      const existing = supabaseFindByHash(hashVal);
+      if (existing) return json({ status: 'duplicate', msg: '此圖片已上傳過' });
+
       const sheet = getOrCreateSheet(getOrCreateSpreadsheet());
       const data  = sheet.getDataRange().getValues();
       for (let i = 1; i < data.length; i++) {
@@ -124,6 +201,11 @@ function handleLineImage(messageId, senderName, timestamp, replyToken) {
     ).substring(0, 16);
 
     // 去重
+    const existing = supabaseFindByHash(hashVal);
+    if (existing) {
+      replyMessage(replyToken, '⚠️ 此圖片已上傳過');
+      return;
+    }
     const sheet = getOrCreateSheet(getOrCreateSpreadsheet());
     const data  = sheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
@@ -275,28 +357,45 @@ function autoCategory(items, store) {
 }
 
 // ================================================================
-// 記錄到試算表（含 OCR）
+// 記錄到試算表 + Supabase（含 OCR）
 // ================================================================
 function logToSheet(timestamp, senderName, fileName, fileUrl, thumbUrl, hashVal, ocr) {
   const sheet = getOrCreateSheet(getOrCreateSpreadsheet());
-  // 日期格式轉換：YYYY/MM/DD → YYYY-MM-DD（HTML date input 需要）
   const buyDate = ocr && ocr.date ? ocr.date.replace(/\//g, '-') : '';
   const category = ocr ? autoCategory(ocr.items, ocr.store) : '';
+  const uploadDate = Utilities.formatDate(timestamp, 'Asia/Taipei', 'yyyy/MM/dd');
+  const uploadTime = Utilities.formatDate(timestamp, 'Asia/Taipei', 'HH:mm');
+
+  // Google Sheets（備份）
   sheet.appendRow([
-    Utilities.formatDate(timestamp, 'Asia/Taipei', 'yyyy/MM/dd'),
-    Utilities.formatDate(timestamp, 'Asia/Taipei', 'HH:mm'),
+    uploadDate,
+    uploadTime,
     senderName,
     '發票照片',
     fileName,
     fileUrl,
     Utilities.formatDate(timestamp, 'Asia/Taipei', 'yyyy-MM'),
-    ocr && ocr.amount ? ocr.amount : '',  // H 金額（OCR）
-    category,                             // I 品項類別（自動分類）
-    buyDate,                              // J 購買日期（OCR，格式YYYY-MM-DD）
-    '',                                   // K 備注（留空，供手動填寫）
+    ocr && ocr.amount ? ocr.amount : '',
+    category,
+    buyDate,
+    '',
     thumbUrl,
     hashVal,
   ]);
+
+  // Supabase（主要資料庫）
+  supabaseInsert({
+    upload_date:    uploadDate.replace(/\//g, '-'),
+    upload_time:    uploadTime,
+    sender:         senderName,
+    amount:         ocr && ocr.amount ? ocr.amount : null,
+    category:       category || null,
+    purchase_date:  buyDate || null,
+    note:           null,
+    drive_url:      fileUrl,
+    thumb_url:      thumbUrl,
+    file_hash:      hashVal || null,
+  });
 }
 
 // ================================================================
@@ -305,7 +404,7 @@ function logToSheet(timestamp, senderName, fileName, fileUrl, thumbUrl, hashVal,
 function handleText(text, senderName, timestamp, replyToken) {
   const cmd = text.trim();
 
-  // ── 純數字 → 補填上一筆發票的金額（1分鐘內有效）──
+  // ── 純數字 → 補填上一筆發票的金額 ──
   const numMatch = cmd.match(/^[\$\$]?([0-9,，]+(\.[0-9]+)?)$/);
   if (numMatch) {
     const amount = parseFloat(numMatch[1].replace(/[,，]/g, ''));
@@ -313,7 +412,6 @@ function handleText(text, senderName, timestamp, replyToken) {
       const sheet = getOrCreateSheet(getOrCreateSpreadsheet());
       const lastRow = sheet.getLastRow();
       if (lastRow >= 2) {
-        // 檢查上一筆是否在1分鐘內
         const lastTime = sheet.getRange(lastRow, 1).getValue() + ' ' + sheet.getRange(lastRow, 2).getValue();
         sheet.getRange(lastRow, 8).setValue(amount);
         replyMessage(replyToken,
@@ -327,7 +425,7 @@ function handleText(text, senderName, timestamp, replyToken) {
     }
   }
 
-  // ── 數字 + 說明 → 補金額和備注（1分鐘內有效）──
+  // ── 數字 + 說明 → 補金額和備注 ──
   const numTextMatch = cmd.match(/^[\$\$]?([0-9,，]+)\s+(.+)$/);
   if (numTextMatch) {
     const amount = parseFloat(numTextMatch[1].replace(/[,，]/g, ''));
@@ -455,23 +553,20 @@ function ok() {
 
 // ================================================================
 // 批次 OCR 補辨識 — 在 Apps Script 手動執行一次
-// 會處理所有「金額空白」的記錄，自動補上金額、購買日期、品項類別
 // ================================================================
 function batchOCR() {
   const sheet  = getOrCreateSheet(getOrCreateSpreadsheet());
   const data   = sheet.getDataRange().getValues();
-  const props  = PropertiesService.getScriptProperties();
 
   let processed = 0, success = 0, failed = 0;
 
   Logger.log('開始批次 OCR，共 ' + (data.length - 1) + ' 筆記錄');
 
   for (let i = 1; i < data.length; i++) {
-    const amount   = data[i][7];  // H: 金額
-    const driveUrl = data[i][5];  // F: Drive連結
-    const fileName = data[i][4];  // E: 檔名
+    const amount   = data[i][7];
+    const driveUrl = data[i][5];
+    const fileName = data[i][4];
 
-    // 只處理金額空白的記錄
     if (amount !== '' && amount !== null) continue;
     if (!driveUrl) continue;
 
@@ -479,28 +574,23 @@ function batchOCR() {
     Logger.log('處理第 ' + i + ' 筆：' + fileName);
 
     try {
-      // 從 Drive URL 取得 File ID
       const match = driveUrl.match(/\/d\/([^\/\?]+)/);
       if (!match) { failed++; continue; }
       const fileId = match[1];
 
-      // 下載圖片
       const file     = DriveApp.getFileById(fileId);
       const blob     = file.getBlob();
       const bytes    = blob.getBytes();
       const base64   = Utilities.base64Encode(bytes);
 
-      // OCR 辨識
       let ocr;
       try {
         ocr = recognizeInvoice(base64);
       } catch(ocrErr) {
-        // recognizeInvoice 內部 JSON 解析失敗時，嘗試從原始回傳文字抓數字當 amount
-        Logger.log('⚠️ 第 ' + i + ' 筆 OCR JSON 解析失敗，嘗試 regex fallback：' + ocrErr.toString());
+        Logger.log('⚠️ 第 ' + i + ' 筆 OCR JSON 解析失敗：' + ocrErr.toString());
         ocr = { amount: null, store: null, date: null, items: [] };
       }
 
-      // 如果 OCR 回傳的 amount 仍為 null，嘗試用 regex 從 rawText 補救
       if (!ocr.amount && ocr._rawText) {
         const numMatch = ocr._rawText.match(/(\d[\d,]*\.?\d*)/g);
         if (numMatch) {
@@ -512,7 +602,7 @@ function batchOCR() {
         }
       }
 
-      // 寫回試算表
+      // 寫回 Google Sheets
       if (ocr.amount) {
         sheet.getRange(i + 1, 8).setValue(ocr.amount);
         success++;
@@ -523,12 +613,23 @@ function batchOCR() {
       if (ocr.store || ocr.items) {
         const cat = autoCategory(ocr.items || [], ocr.store || '');
         if (cat) sheet.getRange(i + 1, 9).setValue(cat);
-        if (ocr.store) sheet.getRange(i + 1, 11).setValue(ocr.store);
+      }
+
+      // 同步到 Supabase（以 file_hash 查找）
+      const hashVal = data[i][12];
+      if (hashVal) {
+        const existing = supabaseFindByHash(hashVal);
+        if (existing) {
+          const updates = {};
+          if (ocr.amount) updates.amount = ocr.amount;
+          if (ocr.date)   updates.purchase_date = ocr.date.replace(/\//g, '-');
+          const cat = autoCategory(ocr.items || [], ocr.store || '');
+          if (cat) updates.category = cat;
+          if (Object.keys(updates).length) supabaseUpdate(existing.id, updates);
+        }
       }
 
       Logger.log('✅ 第 ' + i + ' 筆完成：金額=' + ocr.amount + ', 日期=' + ocr.date + ', 店家=' + ocr.store);
-
-      // 避免 API 限速，每筆間隔 1 秒
       Utilities.sleep(1000);
 
     } catch(e) {
