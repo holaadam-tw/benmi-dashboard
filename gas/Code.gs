@@ -38,7 +38,12 @@ function doGet(e) {
       const headers = data[0];
       const rows = data.slice(1).map(row => {
         const obj = {};
-        headers.forEach((h, i) => obj[h] = row[i] || '');
+        headers.forEach((h, i) => {
+          const v = row[i];
+          obj[h] = v instanceof Date
+            ? Utilities.formatDate(v, 'Asia/Taipei', 'yyyy/MM/dd')
+            : (v || '');
+        });
         return obj;
       }).filter(r => r['日期']);
       return json({ status: 'ok', rows });
