@@ -324,7 +324,11 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
       <div style="font-size:22px;font-weight:700;">採購發票記錄</div>
       <div style="font-size:12px;color:var(--muted);margin-top:2px;">LINE Bot 自動記錄 · 支援直接上傳 · Google Sheets 即時同步</div>
     </div>
-    <button onclick="loadInvoices()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--sans);">↻ 重新載入</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div id="acct-summary" style="font-size:10px;color:var(--muted);text-align:right;"></div>
+      <button onclick="exportAccounting()" style="background:var(--green);border:none;color:#000;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--sans);">導出會計報表</button>
+      <button onclick="loadInvoices()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--sans);">↻ 重新載入</button>
+    </div>
   </div>
 
   <!-- Upload zone -->
@@ -387,6 +391,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <th style="width:100px;cursor:pointer;user-select:none;" onclick="sortInvoices('amount')">金額 <span id="sort-amount" style="font-size:9px;opacity:0.5;">↕</span></th>
         <th style="width:120px">品項類別</th>
         <th class="L">備注</th>
+        <th style="width:80px;">憑證</th>
         <th style="width:76px;text-align:center;">確認</th>
         <th style="width:30px"></th>
       </tr></thead>
@@ -1307,7 +1312,59 @@ async function toggleConfirmed(id, checked) {
   const row = window._invRows.find(r => r.id === id);
   if (row) row.confirmed = checked;
   renderInvoiceTable();
+  updateAcctSummary();
   await sb.from('invoices').update({ confirmed: checked }).eq('id', id);
+}
+
+// ── 會計導出 ──
+function updateAcctSummary() {
+  const rows = getFilteredRows();
+  const confirmed = rows.filter(r => r.confirmed);
+  const missing = confirmed.filter(r => r.invoice_type === 'none');
+  const cAmt = confirmed.reduce((s,r) => s + (parseFloat(r.amount)||0), 0);
+  const mAmt = missing.reduce((s,r) => s + (parseFloat(r.amount)||0), 0);
+  const el = document.getElementById('acct-summary');
+  el.innerHTML = `可申報：${confirmed.length}筆 <span style="color:var(--green);font-family:var(--mono);">$${Math.round(cAmt).toLocaleString()}</span>`
+    + (missing.length ? `<br>缺憑證：${missing.length}筆 <span style="color:var(--red);font-family:var(--mono);">$${Math.round(mAmt).toLocaleString()}</span>` : '');
+}
+
+function exportAccounting() {
+  const rows = window._invRows.filter(r => r.confirmed);
+  if (!rows.length) { alert('沒有已確認的記錄'); return; }
+
+  const now = new Date();
+  const ym = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  const typeLabel = { official:'統一發票', receipt:'一般收據', none:'無憑證' };
+
+  // Main CSV
+  const header = ['日期','購買日期','店家','金額','類別','憑證類型','Drive連結'];
+  const csvRows = rows.map(r => [
+    r.upload_date||'', r.purchase_date||'', (r.note||'').replace(/,/g,'，'),
+    r.amount||'', r.category||'', typeLabel[r.invoice_type]||'一般收據', r.drive_url||''
+  ]);
+  const csv = '\uFEFF' + [header,...csvRows].map(r => r.join(',')).join('\n');
+  _downloadCSV(csv, 'benmi_accounting_' + ym + '.csv');
+
+  // Missing docs
+  const missing = rows.filter(r => r.invoice_type === 'none');
+  if (missing.length) {
+    const mHeader = ['日期','購買日期','店家','金額','類別','Drive連結'];
+    const mRows = missing.map(r => [
+      r.upload_date||'', r.purchase_date||'', (r.note||'').replace(/,/g,'，'),
+      r.amount||'', r.category||'', r.drive_url||''
+    ]);
+    const mCsv = '\uFEFF' + [mHeader,...mRows].map(r => r.join(',')).join('\n');
+    _downloadCSV(mCsv, 'benmi_missing_docs_' + ym + '.csv');
+  }
+}
+
+function _downloadCSV(content, filename) {
+  const blob = new Blob([content], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 // ── 月份篩選 ──
@@ -1412,7 +1469,7 @@ function renderInvoiceTable() {
   const tbody = document.getElementById('inv-tbody');
   tbody.innerHTML = '';
   const total = rows.length;
-  const colSpan = 10; // total columns including confirm + delete
+  const colSpan = 11; // total columns including invoice_type + confirm + delete
 
   // 按購買日期月份分組（不影響排序，只插入標題列）
   let lastMonth = '';
@@ -1517,6 +1574,14 @@ function renderInvoiceTable() {
           onchange="saveField('${id}','note',this.value)"
           style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
       </td>
+      <td>
+        <select onchange="saveField('${id}','invoice_type',this.value)"
+          style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 4px;font-size:10px;cursor:pointer;">
+          <option value="receipt" ${(r.invoice_type||'receipt')==='receipt'?'selected':''}>收據</option>
+          <option value="official" ${r.invoice_type==='official'?'selected':''}>統一發票</option>
+          <option value="none" ${r.invoice_type==='none'?'selected':''}>無憑證</option>
+        </select>
+      </td>
       <td style="text-align:center;">
         <button onclick="toggleConfirmed('${id}',${!r.confirmed})"
           style="background:${r.confirmed?'rgba(62,207,142,0.15)':'var(--surface2)'};border:1px solid ${r.confirmed?'var(--green)':'var(--border)'};color:${r.confirmed?'var(--green)':'var(--muted)'};border-radius:4px;padding:6px 12px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;">${r.confirmed?'✓ 已確認':'待確認'}</button>
@@ -1536,7 +1601,7 @@ function saveField(id, field, value) {
   const ind = document.getElementById('ind-'+id);
   if (ind) { ind.textContent='⏳'; ind.style.color='var(--muted)'; ind.style.opacity='1'; }
 
-  const fieldMap = { amount:'amount', category:'category', buydate:'purchase_date', note:'note' };
+  const fieldMap = { amount:'amount', category:'category', buydate:'purchase_date', note:'note', invoice_type:'invoice_type' };
   const col = fieldMap[field];
   if (!id || !col) return;
 
@@ -1587,6 +1652,7 @@ async function loadInvoices() {
     updateFilteredKPI();
 
     renderInvoiceTable();
+    updateAcctSummary();
 
     document.getElementById('inv-loading').style.display = 'none';
     document.getElementById('inv-table').style.display = 'table';
