@@ -1169,7 +1169,11 @@ async function deleteInvoice(id) {
   const { error } = await sb.from('invoices').delete().eq('id', id);
   console.log('delete result:', error);
   if (!error) {
+    console.log('before delete, _invRows length:', _invRows.length);
+    console.log('filtering id:', id, typeof id);
+    console.log('first row id sample:', _invRows[0]?.id, typeof _invRows[0]?.id);
     _invRows = _invRows.filter(r => r.id !== id);
+    console.log('after delete, _invRows length:', _invRows.length);
     buildMonthFilter();
     renderInvoiceTable();
     updateFilteredKPI();
