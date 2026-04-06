@@ -236,9 +236,19 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
       <div class="kpi-change" id="kpi-salary-pct">—</div>
     </div>
     <div class="kpi profit">
-      <div class="kpi-label">毛利</div>
+      <div class="kpi-label">實際損益</div>
       <div class="kpi-value" id="kpi-profit">—</div>
       <div class="kpi-change" id="kpi-margin">—</div>
+    </div>
+  </div>
+
+  <!-- Fixed costs -->
+  <div class="chart-box" style="margin-bottom:14px;" id="fixed-cost-box">
+    <div class="chart-title">固定費用明細</div>
+    <div id="fixed-cost-detail" style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;"></div>
+    <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:11px;color:var(--muted);">固定費用小計</span>
+      <span id="fixed-cost-total" style="font-family:var(--mono);font-size:14px;color:var(--red);font-weight:600;">—</span>
     </div>
   </div>
 
@@ -292,8 +302,9 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <th>食材%</th>
         <th>薪資支出</th>
         <th>薪資%</th>
-        <th>毛利</th>
-        <th>毛利率</th>
+        <th>固定費用</th>
+        <th>實際損益</th>
+        <th>損益率</th>
         <th>備注</th>
       </tr></thead>
       <tbody id="summaryTable"></tbody>
@@ -554,6 +565,17 @@ const DATA = [
   { revenue:284088, food:null,    salary:null,   note:'3月完結' },
 ];
 
+const FIXED_COSTS = [
+  { rent:0,     util:0,    accounting:0,    tax:0,     pos:0,   wifi:0   },
+  { rent:15750, util:5650, accounting:4000, tax:0,     pos:200, wifi:600 },
+  { rent:15750, util:5650, accounting:4000, tax:0,     pos:200, wifi:600 },
+  { rent:15750, util:5650, accounting:4000, tax:0,     pos:200, wifi:600 },
+  { rent:15750, util:5650, accounting:4000, tax:0,     pos:200, wifi:600 },
+  { rent:15750, util:5650, accounting:4000, tax:0,     pos:200, wifi:600 },
+  { rent:15750, util:5650, accounting:4000, tax:14204, pos:200, wifi:600 },
+];
+function fixedTotal(i) { const f = FIXED_COSTS[i]; return f ? f.rent + f.util + f.accounting + f.tax + f.pos + f.wifi : 0; }
+
 // DATA 月份對應 key（index → YYYY-MM）
 const DATA_MONTH_MAP = ['2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03'];
 
@@ -653,13 +675,26 @@ function updateOverview() {
   const prev = currentMonth > 0 ? DATA[currentMonth-1] : null;
   document.getElementById('selectedMonthLabel').textContent = MONTH_LABELS[currentMonth];
 
-  const profit = d.food != null && d.salary != null ? d.revenue - d.food - d.salary : null;
+  const fc = fixedTotal(currentMonth);
+  const profit = d.food != null && d.salary != null ? d.revenue - d.food - d.salary - fc : null;
   const margin = profit != null ? (profit/d.revenue*100).toFixed(1) : null;
 
   document.getElementById('kpi-revenue').textContent = fmt(d.revenue);
   document.getElementById('kpi-food').textContent = fmt(d.food);
   document.getElementById('kpi-salary').textContent = fmt(d.salary);
   document.getElementById('kpi-profit').textContent = fmt(profit);
+  if (profit != null) {
+    const el = document.getElementById('kpi-profit');
+    el.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+
+  // Fixed cost detail
+  const f = FIXED_COSTS[currentMonth];
+  const fcLabels = [['房租',f.rent],['水電',f.util],['會計',f.accounting],['稅款',f.tax],['POS',f.pos],['Wifi',f.wifi]];
+  document.getElementById('fixed-cost-detail').innerHTML = fcLabels.map(([l,v]) =>
+    `<div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--muted);">${l}</span><span style="font-family:var(--mono);color:${v?'var(--text)':'var(--muted)'};">${v ? fmt(v) : '—'}</span></div>`
+  ).join('');
+  document.getElementById('fixed-cost-total').textContent = fmt(fc);
 
   // Changes
   const revChange = prev ? ((d.revenue - prev.revenue)/prev.revenue*100).toFixed(1) : null;
@@ -669,7 +704,7 @@ function updateOverview() {
 
   document.getElementById('kpi-food-pct').textContent = d.food ? '食材率 ' + pct(d.food, d.revenue) : '資料不足';
   document.getElementById('kpi-salary-pct').textContent = d.salary ? '薪資率 ' + pct(d.salary, d.revenue) : '資料不足';
-  document.getElementById('kpi-margin').textContent = margin ? '毛利率 ' + margin + '%' : '資料不足';
+  document.getElementById('kpi-margin').textContent = margin ? '損益率 ' + margin + '%' : '資料不足';
 
   // Legend
   document.getElementById('leg-rev').textContent = fmt(d.revenue);
@@ -721,7 +756,8 @@ function updateSummaryTable() {
   const tb = document.getElementById('summaryTable');
   tb.innerHTML = '';
   DATA.forEach((d,i) => {
-    const profit = d.food != null && d.salary != null ? d.revenue - d.food - d.salary : null;
+    const fc = fixedTotal(i);
+    const profit = d.food != null && d.salary != null ? d.revenue - d.food - d.salary - fc : null;
     const margin = profit != null ? (profit/d.revenue*100).toFixed(1) : null;
     const active = i === currentMonth;
     tb.innerHTML += `<tr style="${active?'background:rgba(232,160,69,0.06);':''}">
@@ -731,6 +767,7 @@ function updateSummaryTable() {
       <td style="color:var(--accent2);">${d.food ? pct(d.food,d.revenue) : '—'}</td>
       <td>${fmt(d.salary)}</td>
       <td style="color:#a78bfa;">${d.salary ? pct(d.salary,d.revenue) : '—'}</td>
+      <td style="color:var(--muted);">${fc ? fmt(fc) : '—'}</td>
       <td style="color:${profit>0?'var(--green)':'var(--red)'};">${fmt(profit)}</td>
       <td style="color:${margin>20?'var(--green)':margin>0?'var(--accent)':'var(--red)'};">${margin ? margin+'%' : '—'}</td>
       <td><span class="badge ${d.note?'badge-amber':'badge-blue'}">${d.note||'—'}</span></td>
