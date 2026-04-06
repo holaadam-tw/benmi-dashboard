@@ -585,7 +585,10 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  event.target.classList.add('active');
+  const tabs = document.querySelectorAll('.tab');
+  const tabMap = { overview:0, purchase:1, salary:2, products:3 };
+  if (tabs[tabMap[id]]) tabs[tabMap[id]].classList.add('active');
+  sessionStorage.setItem('lastPage', id);
 }
 
 // ── Month navigation ──
@@ -1348,6 +1351,8 @@ function setLang(lang) {
 updateOverview();
 buildProducts();
 loadInvoices();
+const _lastPage = sessionStorage.getItem('lastPage');
+if (_lastPage && _lastPage !== 'overview') showPage(_lastPage);
 </script>
 </body>
 </html>
