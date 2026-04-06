@@ -340,10 +340,10 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
       <thead><tr>
         <th class="L" style="width:30px">#</th>
         <th class="L" style="width:50px">預覽</th>
-        <th class="L">上傳時間</th>
+        <th class="L" style="cursor:pointer;user-select:none;" onclick="sortInvoices('upload_date')">上傳時間 <span id="sort-upload_date" style="font-size:9px;opacity:0.5;">↕</span></th>
         <th class="L">傳送者</th>
-        <th style="width:110px">購買日期</th>
-        <th style="width:100px">金額</th>
+        <th style="width:110px;cursor:pointer;user-select:none;" onclick="sortInvoices('purchase_date')">購買日期 <span id="sort-purchase_date" style="font-size:9px;opacity:0.5;">↕</span></th>
+        <th style="width:100px;cursor:pointer;user-select:none;" onclick="sortInvoices('amount')">金額 <span id="sort-amount" style="font-size:9px;opacity:0.5;">↕</span></th>
         <th style="width:120px">品項類別</th>
         <th class="L">備注</th>
       </tr></thead>
@@ -1036,6 +1036,116 @@ lbVp.addEventListener('touchmove', e => {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
+// ── 排序 ──
+let _invRows = [];  // loadInvoices 載入後保存
+let _invSort = { col: null, asc: false };
+
+function sortInvoices(col) {
+  if (_invSort.col === col) {
+    _invSort.asc = !_invSort.asc;
+  } else {
+    _invSort.col = col;
+    _invSort.asc = true;
+  }
+  // 更新箭頭
+  ['upload_date','purchase_date','amount'].forEach(c => {
+    const el = document.getElementById('sort-'+c);
+    if (el) el.textContent = c === col ? (_invSort.asc ? '↑' : '↓') : '↕';
+  });
+  renderInvoiceTable();
+}
+
+function renderInvoiceTable() {
+  let rows = [..._invRows];
+  if (_invSort.col) {
+    rows.sort((a, b) => {
+      let va = a[_invSort.col], vb = b[_invSort.col];
+      if (_invSort.col === 'amount') {
+        va = parseFloat(va) || 0; vb = parseFloat(vb) || 0;
+      } else {
+        va = va || ''; vb = vb || '';
+      }
+      if (va < vb) return _invSort.asc ? -1 : 1;
+      if (va > vb) return _invSort.asc ? 1 : -1;
+      return 0;
+    });
+  }
+  const tbody = document.getElementById('inv-tbody');
+  tbody.innerHTML = '';
+  const total = rows.length;
+  rows.forEach((r, i) => {
+    const id       = r.id;
+    const dateStr  = r.upload_date || '';
+    const timeStr  = r.upload_time || '';
+    const sender   = r.sender || '';
+    const amt      = r.amount ?? '';
+    const cat      = r.category || '';
+    const note     = r.note || '';
+    const buyDate  = (r.purchase_date || '').replace(/\//g, '-');
+    const thumbUrl = r.thumb_url || '';
+    const driveUrl = r.drive_url || '';
+
+    function driveThumb(url, fallbackThumb) {
+      if (fallbackThumb) return fallbackThumb;
+      if (!url) return '';
+      const m = url.match(/\/d\/([^\/\?]+)/);
+      return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800' : '';
+    }
+    const previewSrc = driveThumb(driveUrl, thumbUrl);
+    const caption    = dateStr + ' ' + sender;
+    const lbSrc      = driveUrl || previewSrc;
+
+    const thumb = lbSrc
+      ? `<div onclick="openLightbox('${lbSrc}','${caption}')"
+            style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
+           ${previewSrc
+             ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;"
+                  onerror="this.style.display='none';this.nextSibling.style.display='flex'"/>
+                <span style="display:none;font-size:18px;color:var(--accent2);">📷</span>`
+             : `<span style="font-size:18px;color:var(--accent2);">📷</span>`
+           }
+         </div>`
+      : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
+
+    const catOpts = CATEGORIES.map(c =>
+      `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`
+    ).join('');
+
+    tbody.innerHTML += `<tr>
+      <td class="L" style="color:var(--muted);font-size:10px;">${total-i}
+        <span id="ind-${id}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
+      </td>
+      <td><div style="display:flex;gap:0;">${thumb}</div></td>
+      <td class="L" style="font-size:11px;">${dateStr||'—'} ${timeStr}</td>
+      <td class="L">${sender||'—'}</td>
+      <td>
+        <input type="date" value="${buyDate}"
+          onchange="saveField('${id}','buydate',this.value)"
+          style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;width:126px;"/>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="color:var(--muted);font-size:10px;">$</span>
+          <input type="number" value="${amt}" placeholder="填入"
+            onchange="saveField('${id}','amount',this.value)"
+            style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
+        </div>
+      </td>
+      <td>
+        <select onchange="saveField('${id}','category',this.value)"
+          style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;cursor:pointer;max-width:115px;">
+          ${catOpts}
+        </select>
+      </td>
+      <td class="L">
+        <input type="text" value="${note}" placeholder="備注"
+          onchange="saveField('${id}','note',this.value)"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
+      </td>
+    </tr>`;
+  });
+}
+
 // ── 欄位儲存（Supabase）──
 function saveField(id, field, value) {
   const ind = document.getElementById('ind-'+id);
@@ -1075,6 +1185,8 @@ async function loadInvoices() {
       return;
     }
 
+    _invRows = rows;
+
     // KPIs
     const now = new Date();
     const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
@@ -1089,80 +1201,7 @@ async function loadInvoices() {
     document.getElementById('inv-who').textContent = latest.sender || '—';
     document.getElementById('inv-updated').textContent = '最後更新：' + new Date().toLocaleTimeString('zh-TW');
 
-    // Table (already DESC from query)
-    const tbody = document.getElementById('inv-tbody');
-    tbody.innerHTML = '';
-    rows.forEach((r, i) => {
-      const id       = r.id;
-      const dateStr  = r.upload_date || '';
-      const timeStr  = r.upload_time || '';
-      const sender   = r.sender || '';
-      const amt      = r.amount ?? '';
-      const cat      = r.category || '';
-      const note     = r.note || '';
-      const buyDate  = (r.purchase_date || '').replace(/\//g, '-');
-      const thumbUrl = r.thumb_url || '';
-      const driveUrl = r.drive_url || '';
-
-      function driveThumb(url, fallbackThumb) {
-        if (fallbackThumb) return fallbackThumb;
-        if (!url) return '';
-        const m = url.match(/\/d\/([^\/\?]+)/);
-        return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800' : '';
-      }
-      const previewSrc = driveThumb(driveUrl, thumbUrl);
-      const caption    = dateStr + ' ' + sender;
-      const lbSrc      = driveUrl || previewSrc;
-
-      const thumb = lbSrc
-        ? `<div onclick="openLightbox('${lbSrc}','${caption}')"
-              style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
-             ${previewSrc
-               ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;"
-                    onerror="this.style.display='none';this.nextSibling.style.display='flex'"/>
-                  <span style="display:none;font-size:18px;color:var(--accent2);">📷</span>`
-               : `<span style="font-size:18px;color:var(--accent2);">📷</span>`
-             }
-           </div>`
-        : '<div style="width:44px;height:44px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;">—</div>';
-
-      const catOpts = CATEGORIES.map(c =>
-        `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`
-      ).join('');
-
-      tbody.innerHTML += `<tr>
-        <td class="L" style="color:var(--muted);font-size:10px;">${rows.length-i}
-          <span id="ind-${id}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
-        </td>
-        <td><div style="display:flex;gap:0;">${thumb}</div></td>
-        <td class="L" style="font-size:11px;">${dateStr||'—'} ${timeStr}</td>
-        <td class="L">${sender||'—'}</td>
-        <td>
-          <input type="date" value="${buyDate}"
-            onchange="saveField('${id}','buydate',this.value)"
-            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;width:126px;"/>
-        </td>
-        <td>
-          <div style="display:flex;align-items:center;gap:3px;">
-            <span style="color:var(--muted);font-size:10px;">$</span>
-            <input type="number" value="${amt}" placeholder="填入"
-              onchange="saveField('${id}','amount',this.value)"
-              style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
-          </div>
-        </td>
-        <td>
-          <select onchange="saveField('${id}','category',this.value)"
-            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;cursor:pointer;max-width:115px;">
-            ${catOpts}
-          </select>
-        </td>
-        <td class="L">
-          <input type="text" value="${note}" placeholder="備注"
-            onchange="saveField('${id}','note',this.value)"
-            style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
-        </td>
-      </tr>`;
-    });
+    renderInvoiceTable();
 
     document.getElementById('inv-loading').style.display = 'none';
     document.getElementById('inv-table').style.display = 'table';
