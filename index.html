@@ -892,54 +892,46 @@ function handleDrop(e) {
 let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0, index:-1, list:[] };
 
 function openLightbox(id) {
-  // 建立有圖片的清單
-  lb.list = _invRows.filter(r => r.drive_url || r.thumb_url);
+  lb.list = _invNavList;
   lb.index = lb.list.findIndex(r => r.id === id);
   if (lb.index < 0) lb.index = 0;
   _lbShowCurrent();
 }
 
+function _lbDriveUrl(r) {
+  // 從 drive_url 取 fileId，用 uc?export=view 直連
+  const url = r.drive_url || r.thumb_url || '';
+  const m = url.match(/\/d\/([^\/\?]+)/) || url.match(/[?&]id=([^&]+)/);
+  if (m) return 'https://drive.google.com/uc?export=view&id=' + m[1];
+  return url;
+}
+
 function _lbShowCurrent() {
   if (!lb.list.length || lb.index < 0) return;
-  const r   = lb.list[lb.index];
-  const src = r.drive_url || r.thumb_url || '';
+  const r       = lb.list[lb.index];
+  const src     = _lbDriveUrl(r);
   const caption = (r.upload_date||'') + ' ' + (r.sender||'');
-  const pos = ' (' + (lb.index+1) + '/' + lb.list.length + ')';
+  const pos     = ' (' + (lb.index+1) + '/' + lb.list.length + ')';
 
   const el = document.getElementById('lightbox');
   document.getElementById('lb-caption').textContent = caption + pos;
   el.style.display = 'flex';
-
-  // 高亮對應列
   _highlightRow(r.id);
 
-  const isDrive = src && src.includes('drive.google.com');
-  if (isDrive) {
-    const m = src.match(/\/d\/([^\/\?]+)/);
-    const fileId = m ? m[1] : null;
-    const embedUrl = fileId ? 'https://drive.google.com/file/d/' + fileId + '/preview' : src;
-    document.getElementById('lb-viewport').style.display = 'none';
-    document.getElementById('lb-iframe-wrap').style.display = 'block';
-    document.getElementById('lb-zoom-controls').style.display = 'none';
-    document.getElementById('lb-hint').textContent = '← → 切換 · ESC 關閉';
-    document.getElementById('lb-iframe').src = embedUrl;
-  } else {
-    document.getElementById('lb-viewport').style.display = 'block';
-    document.getElementById('lb-iframe-wrap').style.display = 'none';
-    document.getElementById('lb-zoom-controls').style.display = 'flex';
-    document.getElementById('lb-hint').textContent = '← → 切換 · 滾輪縮放 · ESC 關閉';
-    document.getElementById('lb-iframe').src = '';
-    lb.scale = 1; lb.x = 0; lb.y = 0;
-    document.getElementById('lb-img').src = src;
-  }
+  // 用圖片模式顯示（uc?export=view 直接載入圖片，不需 iframe）
+  document.getElementById('lb-viewport').style.display = 'block';
+  document.getElementById('lb-iframe-wrap').style.display = 'none';
+  document.getElementById('lb-zoom-controls').style.display = 'flex';
+  document.getElementById('lb-hint').textContent = '← → 切換 · 滾輪縮放 · ESC 關閉';
+  document.getElementById('lb-iframe').src = '';
+  lb.scale = 1; lb.x = 0; lb.y = 0;
+  document.getElementById('lb-img').src = src;
 
-  // 預載相鄰圖片
+  // 預載左右各2張
   if (lb.list.length > 1) {
-    [-1, 1].forEach(d => {
+    [-2, -1, 1, 2].forEach(d => {
       const ni = (lb.index + d + lb.list.length) % lb.list.length;
-      const nr = lb.list[ni];
-      const nu = nr.drive_url || nr.thumb_url;
-      if (nu) new Image().src = nu;
+      if (ni !== lb.index) new Image().src = _lbDriveUrl(lb.list[ni]);
     });
   }
 }
@@ -1084,6 +1076,7 @@ document.addEventListener('keydown', e => {
 
 // ── 排序（sessionStorage 記住）──
 let _invRows = [];
+let _invNavList = [];  // 排序後有圖片的記錄，供燈箱導航
 let _invSort = (function() {
   try {
     const s = JSON.parse(sessionStorage.getItem('inv_sort'));
@@ -1136,6 +1129,9 @@ function renderInvoiceTable() {
       return 0;
     });
   }
+  // 建立排序後的燈箱導航清單
+  _invNavList = rows.filter(r => r.drive_url || r.thumb_url);
+
   const tbody = document.getElementById('inv-tbody');
   tbody.innerHTML = '';
   const total = rows.length;
@@ -1152,10 +1148,10 @@ function renderInvoiceTable() {
     const driveUrl = r.drive_url || '';
 
     function driveThumb(url, fb) {
-      if (fb) return fb.replace(/sz=w\d+/, 'sz=w200');
+      if (fb) return fb.replace(/thumbnail\?id=/, 'uc?export=view&id=').replace(/sz=w\d+/, 'sz=w200');
       if (!url) return '';
       const m = url.match(/\/d\/([^\/\?]+)/);
-      return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w200' : '';
+      return m ? 'https://drive.google.com/uc?export=view&id=' + m[1] + '&sz=w200' : '';
     }
     const previewSrc = driveThumb(driveUrl, thumbUrl);
     const lbSrc      = driveUrl || previewSrc;
@@ -1165,7 +1161,7 @@ function renderInvoiceTable() {
             style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
            ${previewSrc
              ? `<div class="thumb-spinner"></div>
-                <img src="${previewSrc}" loading="lazy" class="thumb-img"
+                <img src="${previewSrc}" loading="lazy" decoding="async" class="thumb-img"
                   style="width:100%;height:100%;object-fit:cover;"
                   onload="this.classList.add('loaded');this.previousElementSibling.style.display='none'"
                   onerror="this.style.display='none';this.previousElementSibling.style.display='none';this.nextElementSibling.style.display='flex'"/>
