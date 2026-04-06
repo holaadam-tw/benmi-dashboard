@@ -175,6 +175,16 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
       <button id="lang-vi" onclick="setLang('vi')" style="background:transparent;border:none;color:var(--muted);padding:5px 10px;cursor:pointer;font-size:11px;font-weight:700;">Tiếng Việt</button>
     </div>
     <div class="nav-date" id="navDate"></div>
+    <div style="position:relative;">
+      <button id="lock-btn" onclick="toggleLockUI()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:14px;">🔒</button>
+      <div id="lock-popup" style="display:none;position:absolute;right:0;top:36px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;box-shadow:0 4px 16px rgba(0,0,0,0.4);z-index:200;width:180px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">輸入管理密碼</div>
+        <input id="lock-pw" type="password" placeholder="密碼"
+          onkeydown="if(event.key==='Enter')checkPw()"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-size:12px;margin-bottom:6px;"/>
+        <div id="lock-msg" style="font-size:10px;min-height:14px;"></div>
+      </div>
+    </div>
   </div>
 </nav>
 
@@ -354,6 +364,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <th style="width:100px;cursor:pointer;user-select:none;" onclick="sortInvoices('amount')">金額 <span id="sort-amount" style="font-size:9px;opacity:0.5;">↕</span></th>
         <th style="width:120px">品項類別</th>
         <th class="L">備注</th>
+        <th style="width:30px"></th>
       </tr></thead>
       <tbody id="inv-tbody"></tbody>
     </table>
@@ -1094,6 +1105,49 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ── 管理密碼鎖 ──
+function isUnlocked() { return sessionStorage.getItem('admin_unlocked') === '1'; }
+function toggleLockUI() {
+  if (isUnlocked()) {
+    sessionStorage.removeItem('admin_unlocked');
+    _updateLockUI();
+    renderInvoiceTable();
+    return;
+  }
+  const popup = document.getElementById('lock-popup');
+  popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
+  if (popup.style.display === 'block') document.getElementById('lock-pw').focus();
+}
+function checkPw() {
+  const pw = document.getElementById('lock-pw').value;
+  if (pw === 'benmi2026') {
+    sessionStorage.setItem('admin_unlocked', '1');
+    document.getElementById('lock-popup').style.display = 'none';
+    document.getElementById('lock-pw').value = '';
+    document.getElementById('lock-msg').textContent = '';
+    _updateLockUI();
+    renderInvoiceTable();
+  } else {
+    document.getElementById('lock-msg').textContent = '密碼錯誤';
+    document.getElementById('lock-msg').style.color = 'var(--red)';
+  }
+}
+function _updateLockUI() {
+  const btn = document.getElementById('lock-btn');
+  if (isUnlocked()) { btn.textContent = '🔓'; btn.style.color = 'var(--green)'; }
+  else { btn.textContent = '🔒'; btn.style.color = 'var(--muted)'; }
+}
+_updateLockUI();
+
+// ── 刪除發票 ──
+async function deleteInvoice(id) {
+  if (!isUnlocked()) return;
+  if (!confirm('確定刪除這筆記錄？')) return;
+  await sb.from('invoices').delete().eq('id', id);
+  _invRows = _invRows.filter(r => r.id !== id);
+  renderInvoiceTable();
+}
+
 // ── 排序（sessionStorage 記住）──
 let _invRows = [];
 let _invNavList = [];  // 排序後有圖片的記錄，供燈箱導航
@@ -1138,6 +1192,7 @@ function _highlightRow(id) {
 
 // ── 渲染表格 ──
 function renderInvoiceTable() {
+  const unlocked = isUnlocked();
   let rows = [..._invRows];
   if (_invSort.col) {
     rows.sort((a, b) => {
@@ -1233,6 +1288,12 @@ function renderInvoiceTable() {
         <input type="text" value="${note}" placeholder="備注"
           onchange="saveField('${id}','note',this.value)"
           style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
+      </td>
+      <td style="text-align:center;">
+        <button onclick="deleteInvoice('${id}')"
+          ${unlocked ? '' : 'disabled'}
+          style="background:none;border:none;cursor:${unlocked?'pointer':'default'};font-size:14px;opacity:${unlocked?'1':'0.25'};color:${unlocked?'var(--red)':'var(--muted)'};padding:2px 4px;"
+          title="${unlocked?'刪除':'需要先解鎖'}">🗑</button>
       </td>
     </tr>`;
   });
