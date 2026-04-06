@@ -17,28 +17,30 @@ const CONFIG = {
 // ================================================================
 // Supabase helpers
 // ================================================================
-function supabaseInsert(row) {
-  if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_KEY) return null;
-  try {
-    const res = UrlFetchApp.fetch(CONFIG.SUPABASE_URL + '/rest/v1/invoices', {
-      method: 'post',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': CONFIG.SUPABASE_KEY,
-        'Authorization': 'Bearer ' + CONFIG.SUPABASE_KEY,
-        'Prefer': 'return=minimal'
-      },
-      payload: JSON.stringify(row),
-      muteHttpExceptions: true
-    });
-    const code = res.getResponseCode();
-    if (code === 201) return true;
-    Logger.log('Supabase insert ' + code + ': ' + res.getContentText());
-    return null;
-  } catch(e) {
-    Logger.log('Supabase insert error: ' + e.toString());
-    return null;
-  }
+function supabaseInsert(record) {
+  const props = PropertiesService.getScriptProperties();
+  const url   = props.getProperty('SUPABASE_URL') + '/rest/v1/invoices';
+  const key   = props.getProperty('SUPABASE_KEY');
+
+  const payload = JSON.stringify(record);
+  Logger.log('Supabase insert payload: ' + payload);
+
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': key,
+      'Authorization': 'Bearer ' + key,
+      'Prefer': 'return=minimal'
+    },
+    payload: payload,
+    muteHttpExceptions: true
+  });
+
+  const code = res.getResponseCode();
+  const body = res.getContentText();
+  Logger.log('Supabase insert ' + code + ': ' + body);
+  return code === 201 || code === 200;
 }
 
 function supabaseUpdate(id, fields) {
