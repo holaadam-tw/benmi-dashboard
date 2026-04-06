@@ -880,29 +880,33 @@ function handleDrop(e) {
 // ── 燈箱：支援縮放、平移 ──
 let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0, index:-1, list:[] };
 
-function openLightbox(src, caption, idx) {
-  // 建立有圖片的清單（從 _invRows）
+function openLightbox(id) {
+  // 建立有圖片的清單
   lb.list = _invRows.filter(r => r.drive_url || r.thumb_url);
-  lb.index = typeof idx === 'number' ? idx : -1;
-
-  _lbShow(src, caption);
+  lb.index = lb.list.findIndex(r => r.id === id);
+  if (lb.index < 0) lb.index = 0;
+  _lbShowCurrent();
 }
 
-function _lbShow(src, caption) {
+function _lbShowCurrent() {
+  if (!lb.list.length || lb.index < 0) return;
+  const r   = lb.list[lb.index];
+  const src = r.drive_url || r.thumb_url || '';
+  const caption = (r.upload_date||'') + ' ' + (r.sender||'');
+  const pos = ' (' + (lb.index+1) + '/' + lb.list.length + ')';
+
   const el = document.getElementById('lightbox');
-  const pos = lb.index >= 0 ? ' (' + (lb.index+1) + '/' + lb.list.length + ')' : '';
-  document.getElementById('lb-caption').textContent = (caption || '發票預覽') + pos;
+  document.getElementById('lb-caption').textContent = caption + pos;
   el.style.display = 'flex';
 
-  const isDrive = src && src.includes('drive.google.com');
+  // 高亮對應列
+  _highlightRow(r.id);
 
+  const isDrive = src && src.includes('drive.google.com');
   if (isDrive) {
     const m = src.match(/\/d\/([^\/\?]+)/);
     const fileId = m ? m[1] : null;
-    const embedUrl = fileId
-      ? 'https://drive.google.com/file/d/' + fileId + '/preview'
-      : src;
-
+    const embedUrl = fileId ? 'https://drive.google.com/file/d/' + fileId + '/preview' : src;
     document.getElementById('lb-viewport').style.display = 'none';
     document.getElementById('lb-iframe-wrap').style.display = 'block';
     document.getElementById('lb-zoom-controls').style.display = 'none';
@@ -922,10 +926,7 @@ function _lbShow(src, caption) {
 function lbNav(dir) {
   if (!lb.list.length || lb.index < 0) return;
   lb.index = (lb.index + dir + lb.list.length) % lb.list.length;
-  const r = lb.list[lb.index];
-  const src = r.drive_url || r.thumb_url || '';
-  const caption = (r.upload_date||'') + ' ' + (r.sender||'');
-  _lbShow(src, caption);
+  _lbShowCurrent();
 }
 
 function lbFitImage() {
@@ -962,6 +963,7 @@ function closeLightbox() {
   document.getElementById('lightbox').style.display = 'none';
   document.getElementById('lb-img').src = '';
   document.getElementById('lb-iframe').src = '';
+  _highlightRow(null);
 }
 
 // 滑鼠滾輪縮放
@@ -1059,35 +1061,55 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// ── 排序 ──
-let _invRows = [];  // loadInvoices 載入後保存
-let _invSort = { col: null, asc: false };
+// ── 排序（sessionStorage 記住）──
+let _invRows = [];
+let _invSort = (function() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem('inv_sort'));
+    if (s && s.col) return s;
+  } catch(e) {}
+  return { col: null, asc: false };
+})();
 
 function sortInvoices(col) {
-  if (_invSort.col === col) {
-    _invSort.asc = !_invSort.asc;
-  } else {
-    _invSort.col = col;
-    _invSort.asc = true;
-  }
-  // 更新箭頭
-  ['upload_date','purchase_date','amount'].forEach(c => {
-    const el = document.getElementById('sort-'+c);
-    if (el) el.textContent = c === col ? (_invSort.asc ? '↑' : '↓') : '↕';
-  });
+  if (_invSort.col === col) { _invSort.asc = !_invSort.asc; }
+  else { _invSort.col = col; _invSort.asc = true; }
+  sessionStorage.setItem('inv_sort', JSON.stringify(_invSort));
+  _applySortArrows();
   renderInvoiceTable();
 }
 
+function _applySortArrows() {
+  ['upload_date','purchase_date','amount'].forEach(c => {
+    const el = document.getElementById('sort-'+c);
+    if (el) el.textContent = c === _invSort.col ? (_invSort.asc ? '↑' : '↓') : '↕';
+  });
+}
+
+// ── 列高亮 ──
+function _highlightRow(id) {
+  document.querySelectorAll('#inv-tbody tr.lb-active').forEach(tr => {
+    tr.classList.remove('lb-active');
+    tr.style.background = '';
+    tr.style.borderLeft = '';
+  });
+  if (!id) return;
+  const tr = document.getElementById('row-' + id);
+  if (tr) {
+    tr.classList.add('lb-active');
+    tr.style.background = 'rgba(232,160,69,0.08)';
+    tr.style.borderLeft = '3px solid var(--accent)';
+  }
+}
+
+// ── 渲染表格 ──
 function renderInvoiceTable() {
   let rows = [..._invRows];
   if (_invSort.col) {
     rows.sort((a, b) => {
       let va = a[_invSort.col], vb = b[_invSort.col];
-      if (_invSort.col === 'amount') {
-        va = parseFloat(va) || 0; vb = parseFloat(vb) || 0;
-      } else {
-        va = va || ''; vb = vb || '';
-      }
+      if (_invSort.col === 'amount') { va = parseFloat(va) || 0; vb = parseFloat(vb) || 0; }
+      else { va = va || ''; vb = vb || ''; }
       if (va < vb) return _invSort.asc ? -1 : 1;
       if (va > vb) return _invSort.asc ? 1 : -1;
       return 0;
@@ -1095,11 +1117,6 @@ function renderInvoiceTable() {
   }
   const tbody = document.getElementById('inv-tbody');
   tbody.innerHTML = '';
-  // 建立有圖片的清單，供燈箱導航用（與 openLightbox 的 lb.list 一致）
-  const imgList = _invRows.filter(r => r.drive_url || r.thumb_url);
-  const imgIdSet = {};
-  imgList.forEach((r, idx) => { imgIdSet[r.id] = idx; });
-
   const total = rows.length;
   rows.forEach((r, i) => {
     const id       = r.id;
@@ -1113,19 +1130,17 @@ function renderInvoiceTable() {
     const thumbUrl = r.thumb_url || '';
     const driveUrl = r.drive_url || '';
 
-    function driveThumb(url, fallbackThumb) {
-      if (fallbackThumb) return fallbackThumb;
+    function driveThumb(url, fb) {
+      if (fb) return fb;
       if (!url) return '';
       const m = url.match(/\/d\/([^\/\?]+)/);
       return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800' : '';
     }
     const previewSrc = driveThumb(driveUrl, thumbUrl);
-    const caption    = dateStr + ' ' + sender;
     const lbSrc      = driveUrl || previewSrc;
-    const lbIdx      = imgIdSet[r.id] ?? -1;
 
     const thumb = lbSrc
-      ? `<div onclick="openLightbox('${lbSrc}','${caption}',${lbIdx})"
+      ? `<div onclick="openLightbox('${id}')"
             style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
            ${previewSrc
              ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;"
@@ -1140,7 +1155,7 @@ function renderInvoiceTable() {
       `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`
     ).join('');
 
-    tbody.innerHTML += `<tr>
+    tbody.innerHTML += `<tr id="row-${id}">
       <td class="L" style="color:var(--muted);font-size:10px;">${total-i}
         <span id="ind-${id}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
       </td>
@@ -1220,6 +1235,7 @@ async function loadInvoices() {
     }
 
     _invRows = rows;
+    _applySortArrows();
 
     // KPIs
     const now = new Date();
