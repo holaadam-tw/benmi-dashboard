@@ -1036,27 +1036,18 @@ lbVp.addEventListener('touchmove', e => {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-// ── 欄位儲存（Supabase + GAS 雙寫）──
-function saveField(key, gasRow, field, value, sbId) {
-  saveEdit(key, field, value);
-  const ind = document.getElementById('ind-'+key);
+// ── 欄位儲存（Supabase）──
+function saveField(id, field, value) {
+  const ind = document.getElementById('ind-'+id);
   if (ind) { ind.textContent='⏳'; ind.style.color='var(--muted)'; ind.style.opacity='1'; }
 
-  // Supabase update
-  const sbFieldMap = { amount:'amount', category:'category', buydate:'purchase_date', note:'note' };
-  const sbField = sbFieldMap[field];
-  if (sbId && sbField) {
-    const val = field === 'amount' ? (parseFloat(value) || null) : (value || null);
-    sb.from('invoices').update({ [sbField]: val }).eq('id', sbId).then();
-  }
+  const fieldMap = { amount:'amount', category:'category', buydate:'purchase_date', note:'note' };
+  const col = fieldMap[field];
+  if (!id || !col) return;
 
-  // GAS backup update
-  const params = new URLSearchParams({ action:'update', row: gasRow });
-  const fieldMap = { amount:'amount', category:'category', buydate:'buydate', note:'note' };
-  params.set(fieldMap[field] || 'note', value);
-  if (sbId) params.set('id', sbId);
-  fetch(GAS_URL + '?' + params.toString(), { mode:'no-cors' })
-    .finally(() => {
+  const val = field === 'amount' ? (parseFloat(value) || null) : (value || null);
+  sb.from('invoices').update({ [col]: val }).eq('id', id)
+    .then(() => {
       if (ind) {
         ind.textContent='✓'; ind.style.color='var(--green)';
         setTimeout(() => { ind.style.opacity='0'; }, 2500);
@@ -1064,38 +1055,19 @@ function saveField(key, gasRow, field, value, sbId) {
     });
 }
 
-// ── 載入發票（Supabase 優先，CSV fallback）──
+// ── 載入發票（Supabase）──
 async function loadInvoices() {
   document.getElementById('inv-loading').style.display = 'block';
   document.getElementById('inv-table').style.display = 'none';
   document.getElementById('inv-empty').style.display = 'none';
 
   try {
-    let rows = [];
-    let fromSupabase = false;
+    const { data: rows, error } = await sb.from('invoices')
+      .select('*')
+      .eq('company_id', 'fb1f6b5f-dcd5-4262-a7de-e7c357662639')
+      .order('created_at', { ascending: false });
 
-    // 優先從 Supabase 載入
-    try {
-      const { data, error } = await sb.from('invoices')
-        .select('*')
-        .order('upload_date', { ascending: true })
-        .order('upload_time', { ascending: true });
-      if (!error && data && data.length) {
-        rows = data;
-        fromSupabase = true;
-      }
-    } catch(e) { /* fallback */ }
-
-    // Supabase 無資料 → CSV fallback
-    if (!rows.length) {
-      try {
-        const res  = await fetch(SHEET_CSV + '&t=' + Date.now());
-        const text = await res.text();
-        rows = (parseCSV(text) || []).filter(r => r && r['日期']);
-      } catch(e) { /* no data */ }
-    }
-
-    const edits = getEdits();
+    if (error) throw new Error(error.message);
 
     if (!rows || !rows.length) {
       document.getElementById('inv-loading').style.display = 'none';
@@ -1106,45 +1078,31 @@ async function loadInvoices() {
     // KPIs
     const now = new Date();
     const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-    const monthRows = fromSupabase
-      ? rows.filter(r => r.upload_date && r.upload_date.startsWith(thisMonth))
-      : rows.filter(r => r['月份'] === thisMonth);
+    const monthRows = rows.filter(r => r.upload_date && r.upload_date.startsWith(thisMonth));
     document.getElementById('inv-count').textContent = monthRows.length;
     document.getElementById('inv-month').textContent = thisMonth + ' 本月';
     let totalAmt = 0;
-    monthRows.forEach(r => {
-      totalAmt += parseFloat(fromSupabase ? r.amount : r['金額']) || 0;
-    });
+    monthRows.forEach(r => { totalAmt += parseFloat(r.amount) || 0; });
     document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
-    const latest = rows[rows.length-1];
-    if (fromSupabase) {
-      document.getElementById('inv-latest').textContent = latest.upload_date?.slice(5) || '—';
-      document.getElementById('inv-who').textContent = latest.sender || '—';
-    } else {
-      document.getElementById('inv-latest').textContent = latest['日期']?.slice(5) || '—';
-      document.getElementById('inv-who').textContent = latest['傳送者'] || '—';
-    }
+    const latest = rows[0];
+    document.getElementById('inv-latest').textContent = latest.upload_date?.slice(5) || '—';
+    document.getElementById('inv-who').textContent = latest.sender || '—';
     document.getElementById('inv-updated').textContent = '最後更新：' + new Date().toLocaleTimeString('zh-TW');
 
-    // Table
+    // Table (already DESC from query)
     const tbody = document.getElementById('inv-tbody');
     tbody.innerHTML = '';
-    [...rows].reverse().forEach((r, i) => {
-      // 統一欄位存取
-      const sbId     = fromSupabase ? r.id : null;
-      const gasRow   = fromSupabase ? 0 : (rows.length - i + 1);
-      const dateStr  = fromSupabase ? (r.upload_date||'') : (r['日期']||'');
-      const timeStr  = fromSupabase ? (r.upload_time||'') : (r['時間']||'');
-      const sender   = fromSupabase ? (r.sender||'') : (r['傳送者']||'');
-      const key      = dateStr + '_' + timeStr;
-      const cached   = edits[key] || {};
-      const amt      = cached.amount   ?? (fromSupabase ? (r.amount??'') : (r['金額']??''));
-      const cat      = cached.category ?? (fromSupabase ? (r.category||'') : (r['品項類別']||''));
-      const note     = cached.note     ?? (fromSupabase ? (r.note||'') : (r['備注']||''));
-      const rawDate  = fromSupabase ? (r.purchase_date||'') : (r['購買日期']||'');
-      const buyDate  = (cached.buydate ?? rawDate).replace(/\//g, '-');
-      const thumbUrl = fromSupabase ? (r.thumb_url||'') : (r['縮圖連結']||'');
-      const driveUrl = fromSupabase ? (r.drive_url||'') : (r['Drive連結']||'');
+    rows.forEach((r, i) => {
+      const id       = r.id;
+      const dateStr  = r.upload_date || '';
+      const timeStr  = r.upload_time || '';
+      const sender   = r.sender || '';
+      const amt      = r.amount ?? '';
+      const cat      = r.category || '';
+      const note     = r.note || '';
+      const buyDate  = (r.purchase_date || '').replace(/\//g, '-');
+      const thumbUrl = r.thumb_url || '';
+      const driveUrl = r.drive_url || '';
 
       function driveThumb(url, fallbackThumb) {
         if (fallbackThumb) return fallbackThumb;
@@ -1172,38 +1130,35 @@ async function loadInvoices() {
         `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`
       ).join('');
 
-      // saveField 的第5個參數是 Supabase id
-      const sfId = sbId ? "'" + sbId + "'" : 'null';
-
       tbody.innerHTML += `<tr>
         <td class="L" style="color:var(--muted);font-size:10px;">${rows.length-i}
-          <span id="ind-${key}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
+          <span id="ind-${id}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
         </td>
         <td><div style="display:flex;gap:0;">${thumb}</div></td>
         <td class="L" style="font-size:11px;">${dateStr||'—'} ${timeStr}</td>
         <td class="L">${sender||'—'}</td>
         <td>
           <input type="date" value="${buyDate}"
-            onchange="saveField('${key}',${gasRow},'buydate',this.value,${sfId})"
+            onchange="saveField('${id}','buydate',this.value)"
             style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;width:126px;"/>
         </td>
         <td>
           <div style="display:flex;align-items:center;gap:3px;">
             <span style="color:var(--muted);font-size:10px;">$</span>
             <input type="number" value="${amt}" placeholder="填入"
-              onchange="saveField('${key}',${gasRow},'amount',this.value,${sfId})"
+              onchange="saveField('${id}','amount',this.value)"
               style="width:72px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:4px;padding:3px 6px;font-family:var(--mono);font-size:12px;text-align:right;"/>
           </div>
         </td>
         <td>
-          <select onchange="saveField('${key}',${gasRow},'category',this.value,${sfId})"
+          <select onchange="saveField('${id}','category',this.value)"
             style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 5px;font-size:11px;cursor:pointer;max-width:115px;">
             ${catOpts}
           </select>
         </td>
         <td class="L">
           <input type="text" value="${note}" placeholder="備注"
-            onchange="saveField('${key}',${gasRow},'note',this.value,${sfId})"
+            onchange="saveField('${id}','note',this.value)"
             style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
         </td>
       </tr>`;
