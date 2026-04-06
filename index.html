@@ -321,6 +321,9 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
     <div id="upload-status" style="margin-top:10px;font-size:12px;min-height:18px;"></div>
   </div>
 
+  <!-- Month filter -->
+  <div id="month-filter" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;"></div>
+
   <!-- KPI row -->
   <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
     <div class="kpi cost">
@@ -1156,9 +1159,47 @@ async function toggleConfirmed(id, checked) {
   await sb.from('invoices').update({ confirmed: checked }).eq('id', id);
 }
 
+// ── 月份篩選 ──
+let _invMonthFilter = sessionStorage.getItem('inv_month_filter') || '';
+
+function buildMonthFilter() {
+  const months = [...new Set(_invRows.map(r => (r.upload_date||'').slice(0,7)).filter(Boolean))].sort().reverse();
+  const container = document.getElementById('month-filter');
+  container.innerHTML = '';
+  const all = document.createElement('button');
+  all.textContent = '全部';
+  all.style.cssText = 'padding:5px 12px;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-size:11px;font-weight:600;font-family:var(--sans);' +
+    (!_invMonthFilter ? 'background:var(--accent);color:#000;' : 'background:var(--surface2);color:var(--muted);');
+  all.onclick = () => { _invMonthFilter = ''; sessionStorage.setItem('inv_month_filter',''); buildMonthFilter(); renderInvoiceTable(); updateFilteredKPI(); };
+  container.appendChild(all);
+  months.forEach(ym => {
+    const btn = document.createElement('button');
+    btn.textContent = ym;
+    btn.style.cssText = 'padding:5px 12px;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-size:11px;font-weight:600;font-family:var(--mono);' +
+      (_invMonthFilter === ym ? 'background:var(--accent);color:#000;' : 'background:var(--surface2);color:var(--muted);');
+    btn.onclick = () => { _invMonthFilter = ym; sessionStorage.setItem('inv_month_filter',ym); buildMonthFilter(); renderInvoiceTable(); updateFilteredKPI(); };
+    container.appendChild(btn);
+  });
+}
+
+function getFilteredRows() {
+  if (!_invMonthFilter) return _invRows;
+  return _invRows.filter(r => (r.upload_date||'').startsWith(_invMonthFilter));
+}
+
+function updateFilteredKPI() {
+  const rows = getFilteredRows();
+  const label = _invMonthFilter || (new Date().getFullYear() + '-' + String(new Date().getMonth()+1).padStart(2,'0'));
+  document.getElementById('inv-count').textContent = rows.length;
+  document.getElementById('inv-month').textContent = (_invMonthFilter || label) + (_invMonthFilter ? '' : ' 本月');
+  let totalAmt = 0;
+  rows.forEach(r => { totalAmt += parseFloat(r.amount) || 0; });
+  document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
+}
+
 // ── 排序（sessionStorage 記住）──
 let _invRows = [];
-let _invNavList = [];  // 排序後有圖片的記錄，供燈箱導航
+let _invNavList = [];
 let _invSort = (function() {
   try {
     const s = JSON.parse(sessionStorage.getItem('inv_sort'));
@@ -1201,7 +1242,7 @@ function _highlightRow(id) {
 // ── 渲染表格 ──
 function renderInvoiceTable() {
   const unlocked = isUnlocked();
-  let rows = [..._invRows];
+  let rows = [...getFilteredRows()];
   if (_invSort.col) {
     rows.sort((a, b) => {
       let va = a[_invSort.col], vb = b[_invSort.col];
@@ -1387,20 +1428,14 @@ async function loadInvoices() {
 
     _invRows = rows;
     _applySortArrows();
+    buildMonthFilter();
 
-    // KPIs
-    const now = new Date();
-    const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-    const monthRows = rows.filter(r => r.upload_date && r.upload_date.startsWith(thisMonth));
-    document.getElementById('inv-count').textContent = monthRows.length;
-    document.getElementById('inv-month').textContent = thisMonth + ' 本月';
-    let totalAmt = 0;
-    monthRows.forEach(r => { totalAmt += parseFloat(r.amount) || 0; });
-    document.getElementById('inv-total').textContent = totalAmt ? '$' + Math.round(totalAmt).toLocaleString() : '待填入';
+    // KPIs — 依篩選更新
     const latest = rows[0];
     document.getElementById('inv-latest').textContent = latest.upload_date?.slice(5) || '—';
     document.getElementById('inv-who').textContent = latest.sender || '—';
     document.getElementById('inv-updated').textContent = '最後更新：' + new Date().toLocaleTimeString('zh-TW');
+    updateFilteredKPI();
 
     renderInvoiceTable();
 
