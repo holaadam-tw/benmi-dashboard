@@ -364,6 +364,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <th style="width:100px;cursor:pointer;user-select:none;" onclick="sortInvoices('amount')">金額 <span id="sort-amount" style="font-size:9px;opacity:0.5;">↕</span></th>
         <th style="width:120px">品項類別</th>
         <th class="L">備注</th>
+        <th style="width:36px;text-align:center;">確認</th>
         <th style="width:30px"></th>
       </tr></thead>
       <tbody id="inv-tbody"></tbody>
@@ -1148,6 +1149,13 @@ async function deleteInvoice(id) {
   renderInvoiceTable();
 }
 
+async function toggleConfirmed(id, checked) {
+  const row = _invRows.find(r => r.id === id);
+  if (row) row.confirmed = checked;
+  renderInvoiceTable();
+  await sb.from('invoices').update({ confirmed: checked }).eq('id', id);
+}
+
 // ── 排序（sessionStorage 記住）──
 let _invRows = [];
 let _invNavList = [];  // 排序後有圖片的記錄，供燈箱導航
@@ -1258,7 +1266,7 @@ function renderInvoiceTable() {
       `<option value="${c}" ${c===cat?'selected':''}>${c||t('select_cat')}</option>`
     ).join('');
 
-    tbody.innerHTML += `<tr id="row-${id}">
+    tbody.innerHTML += `<tr id="row-${id}" style="${r.confirmed?'background:rgba(62,207,142,0.06);':''}">
       <td class="L" style="color:var(--muted);font-size:10px;">${total-i}
         <span id="ind-${id}" style="font-size:9px;margin-left:3px;opacity:0;transition:opacity 0.4s;"></span>
       </td>
@@ -1288,6 +1296,11 @@ function renderInvoiceTable() {
         <input type="text" value="${note}" placeholder="備注"
           onchange="saveField('${id}','note',this.value)"
           style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
+      </td>
+      <td style="text-align:center;">
+        <input type="checkbox" ${r.confirmed?'checked':''}
+          onchange="toggleConfirmed('${id}',this.checked)"
+          style="cursor:pointer;accent-color:var(--green);width:15px;height:15px;"/>
       </td>
       <td style="text-align:center;">
         <button onclick="deleteInvoice('${id}')"
