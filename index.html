@@ -179,9 +179,12 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
       <button id="lock-btn" onclick="toggleLockUI()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:14px;">🔒</button>
       <div id="lock-popup" style="display:none;position:absolute;right:0;top:36px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;box-shadow:0 4px 16px rgba(0,0,0,0.4);z-index:200;width:180px;">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">輸入管理密碼</div>
-        <input id="lock-pw" type="password" placeholder="密碼"
-          onkeydown="if(event.key==='Enter')checkPw()"
-          style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-size:12px;margin-bottom:6px;"/>
+        <div style="display:flex;gap:4px;margin-bottom:6px;">
+          <input id="lock-pw" type="password" placeholder="密碼"
+            onkeydown="if(event.key==='Enter')checkPw()"
+            style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-size:12px;"/>
+          <button id="lock-eye" onclick="togglePwVis()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:13px;padding:4px 6px;">👁‍🗨</button>
+        </div>
         <div id="lock-msg" style="font-size:10px;min-height:14px;"></div>
       </div>
     </div>
@@ -1141,6 +1144,20 @@ function _updateLockUI() {
   if (isUnlocked()) { btn.textContent = '🔓'; btn.style.color = 'var(--green)'; }
   else { btn.textContent = '🔒'; btn.style.color = 'var(--muted)'; }
 }
+function togglePwVis() {
+  const inp = document.getElementById('lock-pw');
+  const eye = document.getElementById('lock-eye');
+  if (inp.type === 'password') { inp.type = 'text'; eye.textContent = '👁'; }
+  else { inp.type = 'password'; eye.textContent = '👁‍🗨'; }
+}
+function _autoLock() {
+  if (!isUnlocked()) return;
+  sessionStorage.removeItem('admin_unlocked');
+  _updateLockUI();
+  if (_invRows.length) renderInvoiceTable();
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) _autoLock(); });
+window.addEventListener('blur', _autoLock);
 _updateLockUI();
 
 // ── 刪除發票 ──
