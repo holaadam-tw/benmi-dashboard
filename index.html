@@ -898,18 +898,21 @@ function openLightbox(id) {
   _lbShowCurrent();
 }
 
-function _lbDriveUrl(r) {
-  // 從 drive_url 取 fileId，用 uc?export=view 直連
-  const url = r.drive_url || r.thumb_url || '';
+// 統一從 URL 抽取 Drive file ID
+function _driveFileId(url) {
+  if (!url) return null;
   const m = url.match(/\/d\/([^\/\?]+)/) || url.match(/[?&]id=([^&]+)/);
-  if (m) return 'https://drive.google.com/uc?export=view&id=' + m[1];
-  return url;
+  return m ? m[1] : null;
+}
+
+// 判斷是否為 Supabase Storage URL
+function _isSupabaseUrl(url) {
+  return url && url.includes('supabase.co');
 }
 
 function _lbShowCurrent() {
   if (!lb.list.length || lb.index < 0) return;
   const r       = lb.list[lb.index];
-  const src     = _lbDriveUrl(r);
   const caption = (r.upload_date||'') + ' ' + (r.sender||'');
   const pos     = ' (' + (lb.index+1) + '/' + lb.list.length + ')';
 
@@ -918,20 +921,37 @@ function _lbShowCurrent() {
   el.style.display = 'flex';
   _highlightRow(r.id);
 
-  // 用圖片模式顯示（uc?export=view 直接載入圖片，不需 iframe）
-  document.getElementById('lb-viewport').style.display = 'block';
-  document.getElementById('lb-iframe-wrap').style.display = 'none';
-  document.getElementById('lb-zoom-controls').style.display = 'flex';
-  document.getElementById('lb-hint').textContent = '← → 切換 · 滾輪縮放 · ESC 關閉';
-  document.getElementById('lb-iframe').src = '';
-  lb.scale = 1; lb.x = 0; lb.y = 0;
-  document.getElementById('lb-img').src = src;
+  // Supabase Storage → img 直接顯示；Drive → iframe /preview
+  const sbUrl = _isSupabaseUrl(r.thumb_url) ? r.thumb_url : null;
 
-  // 預載左右各2張
+  if (sbUrl) {
+    // Supabase 圖片：用 img 模式
+    document.getElementById('lb-viewport').style.display = 'block';
+    document.getElementById('lb-iframe-wrap').style.display = 'none';
+    document.getElementById('lb-zoom-controls').style.display = 'flex';
+    document.getElementById('lb-hint').textContent = '← → 切換 · 滾輪縮放 · ESC 關閉';
+    document.getElementById('lb-iframe').src = '';
+    lb.scale = 1; lb.x = 0; lb.y = 0;
+    document.getElementById('lb-img').src = sbUrl;
+  } else {
+    // Drive 圖片：用 iframe /preview 模式（不需登入）
+    const fileId = _driveFileId(r.drive_url) || _driveFileId(r.thumb_url);
+    const embedUrl = fileId ? 'https://drive.google.com/file/d/' + fileId + '/preview' : '';
+    document.getElementById('lb-viewport').style.display = 'none';
+    document.getElementById('lb-iframe-wrap').style.display = 'block';
+    document.getElementById('lb-zoom-controls').style.display = 'none';
+    document.getElementById('lb-hint').textContent = '← → 切換 · ESC 關閉';
+    document.getElementById('lb-iframe').src = embedUrl;
+  }
+
+  // 預載左右各2張（只預載 Supabase URL）
   if (lb.list.length > 1) {
     [-2, -1, 1, 2].forEach(d => {
       const ni = (lb.index + d + lb.list.length) % lb.list.length;
-      if (ni !== lb.index) new Image().src = _lbDriveUrl(lb.list[ni]);
+      if (ni !== lb.index) {
+        const nr = lb.list[ni];
+        if (_isSupabaseUrl(nr.thumb_url)) new Image().src = nr.thumb_url;
+      }
     });
   }
 }
@@ -1147,23 +1167,24 @@ function renderInvoiceTable() {
     const thumbUrl = r.thumb_url || '';
     const driveUrl = r.drive_url || '';
 
-    // 從 drive_url 產生 fallback 縮圖 URL
-    function driveFallback(url) {
-      if (!url) return '';
-      const m = url.match(/\/d\/([^\/\?]+)/);
-      return m ? 'https://drive.google.com/uc?export=view&id=' + m[1] + '&sz=w200' : '';
+    // 縮圖 URL：Supabase Storage 直接用，Drive 用 thumbnail?id=
+    const isSb = _isSupabaseUrl(thumbUrl);
+    let previewSrc = '';
+    if (isSb) {
+      previewSrc = thumbUrl;
+    } else {
+      const fid = _driveFileId(thumbUrl) || _driveFileId(driveUrl);
+      if (fid) previewSrc = 'https://drive.google.com/thumbnail?id=' + fid + '&sz=w200';
     }
-    // 優先 thumb_url（Supabase Storage 或 Drive），fallback 從 drive_url 抽取
-    const previewSrc = thumbUrl || driveFallback(driveUrl);
-    const lbSrc      = driveUrl || previewSrc;
-
-    // onerror fallback：嘗試 drive_url 產生的縮圖，再失敗顯示 📷
-    const fbUrl = thumbUrl ? driveFallback(driveUrl) : '';
-    const onErrScript = fbUrl
+    // onerror fallback：Drive thumbnail 作為第二選項
+    const fbFid = _driveFileId(driveUrl);
+    const fbUrl = (!isSb && !previewSrc) ? '' : (fbFid ? 'https://drive.google.com/thumbnail?id=' + fbFid + '&sz=w200' : '');
+    const onErrScript = fbUrl && fbUrl !== previewSrc
       ? `if(!this.dataset.retry){this.dataset.retry='1';this.src='${fbUrl}';}else{this.style.display='none';this.previousElementSibling.style.display='none';this.nextElementSibling.style.display='flex';}`
       : `this.style.display='none';this.previousElementSibling.style.display='none';this.nextElementSibling.style.display='flex'`;
+    const hasImg = previewSrc || driveUrl;
 
-    const thumb = lbSrc
+    const thumb = hasImg
       ? `<div onclick="openLightbox('${id}')" class="thumb-wrap"
             style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
            ${previewSrc
