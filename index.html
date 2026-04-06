@@ -554,6 +554,32 @@ const DATA = [
   { revenue:284088, food:null,    salary:null,   note:'3月完結' },
 ];
 
+// DATA 月份對應 key（index → YYYY-MM）
+const DATA_MONTH_MAP = ['2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03'];
+
+async function loadFoodCosts() {
+  try {
+    const { data, error } = await sb.from('invoices')
+      .select('purchase_date, amount')
+      .eq('company_id', 'fb1f6b5f-dcd5-4262-a7de-e7c357662639')
+      .not('purchase_date', 'is', null)
+      .not('amount', 'is', null);
+    if (error || !data) return;
+
+    const totals = {};
+    data.forEach(r => {
+      const ym = (r.purchase_date || '').slice(0, 7);
+      if (ym) totals[ym] = (totals[ym] || 0) + (parseFloat(r.amount) || 0);
+    });
+
+    DATA_MONTH_MAP.forEach((ym, i) => {
+      if (totals[ym] !== undefined) DATA[i].food = Math.round(totals[ym]);
+    });
+
+    updateOverview();
+  } catch(e) { console.log('loadFoodCosts error:', e); }
+}
+
 const PRODUCTS = [
   ['Cheese 雙層烤肉',310,35650],
   ['燒肉麵包 / Braised pork',414,33190],
@@ -1542,6 +1568,7 @@ function setLang(lang) {
 updateOverview();
 buildProducts();
 loadInvoices();
+loadFoodCosts();
 const _lastPage = sessionStorage.getItem('lastPage');
 if (_lastPage && _lastPage !== 'overview') showPage(_lastPage);
 </script>
