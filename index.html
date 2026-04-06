@@ -1176,6 +1176,7 @@ async function deleteInvoice(id) {
     console.log('after delete, _invRows length:', _invRows.length);
     buildMonthFilter();
     renderInvoiceTable();
+    console.log('rendered, tbody rows:', document.getElementById('inv-tbody').rows.length);
     updateFilteredKPI();
   } else {
     alert('刪除失敗：' + error.message);
