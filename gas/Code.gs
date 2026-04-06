@@ -26,14 +26,14 @@ function supabaseInsert(row) {
         'Content-Type': 'application/json',
         'apikey': CONFIG.SUPABASE_KEY,
         'Authorization': 'Bearer ' + CONFIG.SUPABASE_KEY,
-        'Prefer': 'return=representation'
+        'Prefer': 'return=minimal'
       },
       payload: JSON.stringify(row),
       muteHttpExceptions: true
     });
-    const body = JSON.parse(res.getContentText());
-    if (Array.isArray(body) && body.length) return body[0];
-    Logger.log('Supabase insert response: ' + res.getContentText());
+    const code = res.getResponseCode();
+    if (code === 201) return true;
+    Logger.log('Supabase insert ' + code + ': ' + res.getContentText());
     return null;
   } catch(e) {
     Logger.log('Supabase insert error: ' + e.toString());
