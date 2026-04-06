@@ -364,7 +364,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <th style="width:100px;cursor:pointer;user-select:none;" onclick="sortInvoices('amount')">金額 <span id="sort-amount" style="font-size:9px;opacity:0.5;">↕</span></th>
         <th style="width:120px">品項類別</th>
         <th class="L">備注</th>
-        <th style="width:36px;text-align:center;">確認</th>
+        <th style="width:76px;text-align:center;">確認</th>
         <th style="width:30px"></th>
       </tr></thead>
       <tbody id="inv-tbody"></tbody>
@@ -1298,9 +1298,8 @@ function renderInvoiceTable() {
           style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 6px;font-size:11px;"/>
       </td>
       <td style="text-align:center;">
-        <input type="checkbox" ${r.confirmed?'checked':''}
-          onchange="toggleConfirmed('${id}',this.checked)"
-          style="cursor:pointer;accent-color:var(--green);width:15px;height:15px;"/>
+        <button onclick="toggleConfirmed('${id}',${!r.confirmed})"
+          style="background:${r.confirmed?'rgba(62,207,142,0.15)':'var(--surface2)'};border:1px solid ${r.confirmed?'var(--green)':'var(--border)'};color:${r.confirmed?'var(--green)':'var(--muted)'};border-radius:4px;padding:6px 12px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;">${r.confirmed?'✓ 已確認':'待確認'}</button>
       </td>
       <td style="text-align:center;">
         <button onclick="deleteInvoice('${id}')"
