@@ -1164,9 +1164,16 @@ _updateLockUI();
 async function deleteInvoice(id) {
   if (!isUnlocked()) return;
   if (!confirm('確定刪除這筆記錄？')) return;
-  await sb.from('invoices').delete().eq('id', id);
-  _invRows = _invRows.filter(r => r.id !== id);
-  renderInvoiceTable();
+  console.log('deleting id:', id);
+  const { error } = await sb.from('invoices').delete().eq('id', id);
+  console.log('delete result:', error);
+  if (!error) {
+    _invRows = _invRows.filter(r => r.id !== id);
+    renderInvoiceTable();
+    updateFilteredKPI();
+  } else {
+    alert('刪除失敗：' + error.message);
+  }
 }
 
 async function toggleConfirmed(id, checked) {
