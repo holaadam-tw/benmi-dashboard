@@ -361,7 +361,9 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   <!-- 標題列（拖曳用） -->
   <div id="lb-titlebar" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--border);cursor:move;flex-shrink:0;user-select:none;">
     <div style="display:flex;align-items:center;gap:8px;">
+      <button onclick="lbNav(-1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:13px;line-height:1;">←</button>
       <span style="font-size:11px;color:var(--muted);" id="lb-caption">發票預覽</span>
+      <button onclick="lbNav(1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:13px;line-height:1;">→</button>
     </div>
     <div style="display:flex;gap:6px;align-items:center;">
       <div id="lb-zoom-controls" style="display:flex;gap:4px;align-items:center;">
@@ -876,18 +878,25 @@ function handleDrop(e) {
 }
 
 // ── 燈箱：支援縮放、平移 ──
-let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0 };
+let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0, index:-1, list:[] };
 
-function openLightbox(src, caption) {
+function openLightbox(src, caption, idx) {
+  // 建立有圖片的清單（從 _invRows）
+  lb.list = _invRows.filter(r => r.drive_url || r.thumb_url);
+  lb.index = typeof idx === 'number' ? idx : -1;
+
+  _lbShow(src, caption);
+}
+
+function _lbShow(src, caption) {
   const el = document.getElementById('lightbox');
-  document.getElementById('lb-caption').textContent = caption || '';
+  const pos = lb.index >= 0 ? ' (' + (lb.index+1) + '/' + lb.list.length + ')' : '';
+  document.getElementById('lb-caption').textContent = (caption || '發票預覽') + pos;
   el.style.display = 'flex';
 
-  // 判斷是 Drive 連結還是圖片
   const isDrive = src && src.includes('drive.google.com');
 
   if (isDrive) {
-    // 從 Drive URL 取得 file ID → 用 /preview iframe
     const m = src.match(/\/d\/([^\/\?]+)/);
     const fileId = m ? m[1] : null;
     const embedUrl = fileId
@@ -897,18 +906,26 @@ function openLightbox(src, caption) {
     document.getElementById('lb-viewport').style.display = 'none';
     document.getElementById('lb-iframe-wrap').style.display = 'block';
     document.getElementById('lb-zoom-controls').style.display = 'none';
-    document.getElementById('lb-hint').textContent = 'Google Drive 預覽 · ESC 關閉';
+    document.getElementById('lb-hint').textContent = '← → 切換 · ESC 關閉';
     document.getElementById('lb-iframe').src = embedUrl;
   } else {
-    // 一般圖片模式
     document.getElementById('lb-viewport').style.display = 'block';
     document.getElementById('lb-iframe-wrap').style.display = 'none';
     document.getElementById('lb-zoom-controls').style.display = 'flex';
-    document.getElementById('lb-hint').textContent = '滾輪縮放 · 拖曳平移 · ESC 關閉';
+    document.getElementById('lb-hint').textContent = '← → 切換 · 滾輪縮放 · ESC 關閉';
     document.getElementById('lb-iframe').src = '';
     lb.scale = 1; lb.x = 0; lb.y = 0;
     document.getElementById('lb-img').src = src;
   }
+}
+
+function lbNav(dir) {
+  if (!lb.list.length || lb.index < 0) return;
+  lb.index = (lb.index + dir + lb.list.length) % lb.list.length;
+  const r = lb.list[lb.index];
+  const src = r.drive_url || r.thumb_url || '';
+  const caption = (r.upload_date||'') + ' ' + (r.sender||'');
+  _lbShow(src, caption);
 }
 
 function lbFitImage() {
@@ -1034,7 +1051,13 @@ lbVp.addEventListener('touchmove', e => {
   });
 })();
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLightbox();
+  if (document.getElementById('lightbox').style.display === 'flex') {
+    if (e.key === 'ArrowLeft')  lbNav(-1);
+    if (e.key === 'ArrowRight') lbNav(1);
+  }
+});
 
 // ── 排序 ──
 let _invRows = [];  // loadInvoices 載入後保存
@@ -1072,6 +1095,11 @@ function renderInvoiceTable() {
   }
   const tbody = document.getElementById('inv-tbody');
   tbody.innerHTML = '';
+  // 建立有圖片的清單，供燈箱導航用（與 openLightbox 的 lb.list 一致）
+  const imgList = _invRows.filter(r => r.drive_url || r.thumb_url);
+  const imgIdSet = {};
+  imgList.forEach((r, idx) => { imgIdSet[r.id] = idx; });
+
   const total = rows.length;
   rows.forEach((r, i) => {
     const id       = r.id;
@@ -1094,9 +1122,10 @@ function renderInvoiceTable() {
     const previewSrc = driveThumb(driveUrl, thumbUrl);
     const caption    = dateStr + ' ' + sender;
     const lbSrc      = driveUrl || previewSrc;
+    const lbIdx      = imgIdSet[r.id] ?? -1;
 
     const thumb = lbSrc
-      ? `<div onclick="openLightbox('${lbSrc}','${caption}')"
+      ? `<div onclick="openLightbox('${lbSrc}','${caption}',${lbIdx})"
             style="width:44px;height:44px;background:var(--surface2);border-radius:4px;cursor:zoom-in;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
            ${previewSrc
              ? `<img src="${previewSrc}" style="width:100%;height:100%;object-fit:cover;"
