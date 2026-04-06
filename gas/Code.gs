@@ -82,22 +82,25 @@ function uploadToSupabaseStorage(imageBase64, fileName) {
   try {
     const bytes = Utilities.base64Decode(imageBase64);
     const blob  = Utilities.newBlob(bytes, 'image/jpeg', fileName);
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const res   = UrlFetchApp.fetch(
-      CONFIG.SUPABASE_URL + '/storage/v1/object/invoices/' + encodeURIComponent(fileName), {
-      method: 'post',
+      CONFIG.SUPABASE_URL + '/storage/v1/object/invoices/' + safeName, {
+      method: 'put',
       headers: {
         'apikey': CONFIG.SUPABASE_KEY,
         'Authorization': 'Bearer ' + CONFIG.SUPABASE_KEY,
-        'Content-Type': 'image/jpeg'
+        'Content-Type': 'image/jpeg',
+        'x-upsert': 'true'
       },
       payload: blob.getBytes(),
       muteHttpExceptions: true
     });
     const code = res.getResponseCode();
+    Logger.log('Supabase storage ' + code + ' for ' + safeName);
     if (code === 200 || code === 201) {
-      return CONFIG.SUPABASE_URL + '/storage/v1/object/public/invoices/' + encodeURIComponent(fileName);
+      return CONFIG.SUPABASE_URL + '/storage/v1/object/public/invoices/' + safeName;
     }
-    Logger.log('Supabase storage ' + code + ': ' + res.getContentText());
+    Logger.log('Supabase storage body: ' + res.getContentText());
     return null;
   } catch(e) {
     Logger.log('Supabase storage error: ' + e.toString());
@@ -606,6 +609,13 @@ function batchOCR() {
 
     if (amount !== '' && amount !== null) continue;
     if (!driveUrl) continue;
+
+    // 跳過異常 hash（base64 格式含 / 或 +）
+    const hashVal = data[i][12];
+    if (hashVal && /[\/\+]/.test(hashVal)) {
+      Logger.log('⏭ 第 ' + i + ' 筆跳過：異常 hash=' + hashVal);
+      continue;
+    }
 
     processed++;
     Logger.log('處理第 ' + i + ' 筆：' + fileName);
