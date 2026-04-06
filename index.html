@@ -1156,6 +1156,11 @@ function saveField(id, field, value) {
   if (!id || !col) return;
 
   const val = field === 'amount' ? (parseFloat(value) || null) : (value || null);
+
+  // 同步本地 _invRows
+  const row = _invRows.find(r => r.id === id);
+  if (row) row[col] = val;
+
   sb.from('invoices').update({ [col]: val }).eq('id', id)
     .then(() => {
       if (ind) {
