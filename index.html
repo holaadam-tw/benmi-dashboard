@@ -1147,14 +1147,21 @@ function renderInvoiceTable() {
     const thumbUrl = r.thumb_url || '';
     const driveUrl = r.drive_url || '';
 
-    function driveThumb(url, fb) {
-      if (fb) return fb.replace(/thumbnail\?id=/, 'uc?export=view&id=').replace(/sz=w\d+/, 'sz=w200');
+    // 從 drive_url 產生 fallback 縮圖 URL
+    function driveFallback(url) {
       if (!url) return '';
       const m = url.match(/\/d\/([^\/\?]+)/);
       return m ? 'https://drive.google.com/uc?export=view&id=' + m[1] + '&sz=w200' : '';
     }
-    const previewSrc = driveThumb(driveUrl, thumbUrl);
+    // 優先 thumb_url（Supabase Storage 或 Drive），fallback 從 drive_url 抽取
+    const previewSrc = thumbUrl || driveFallback(driveUrl);
     const lbSrc      = driveUrl || previewSrc;
+
+    // onerror fallback：嘗試 drive_url 產生的縮圖，再失敗顯示 📷
+    const fbUrl = thumbUrl ? driveFallback(driveUrl) : '';
+    const onErrScript = fbUrl
+      ? `if(!this.dataset.retry){this.dataset.retry='1';this.src='${fbUrl}';}else{this.style.display='none';this.previousElementSibling.style.display='none';this.nextElementSibling.style.display='flex';}`
+      : `this.style.display='none';this.previousElementSibling.style.display='none';this.nextElementSibling.style.display='flex'`;
 
     const thumb = lbSrc
       ? `<div onclick="openLightbox('${id}')" class="thumb-wrap"
@@ -1164,7 +1171,7 @@ function renderInvoiceTable() {
                 <img src="${previewSrc}" loading="lazy" decoding="async" class="thumb-img"
                   style="width:100%;height:100%;object-fit:cover;"
                   onload="this.classList.add('loaded');this.previousElementSibling.style.display='none'"
-                  onerror="this.style.display='none';this.previousElementSibling.style.display='none';this.nextElementSibling.style.display='flex'"/>
+                  onerror="${onErrScript}"/>
                 <span style="display:none;font-size:18px;color:var(--accent2);">📷</span>`
              : `<span style="font-size:18px;color:var(--accent2);">📷</span>`
            }
