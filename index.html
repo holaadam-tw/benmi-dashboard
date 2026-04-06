@@ -252,6 +252,12 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
     </div>
   </div>
 
+  <!-- Cash reconciliation -->
+  <div class="chart-box" style="margin-bottom:14px;" id="cash-box">
+    <div class="chart-title">現金餘額追蹤</div>
+    <div id="cash-detail" style="display:flex;gap:24px;flex-wrap:wrap;font-size:12px;"></div>
+  </div>
+
   <!-- Chart row -->
   <div class="chart-row">
     <div class="chart-box">
@@ -299,12 +305,11 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <th class="L">月份</th>
         <th>POS業績</th>
         <th>食材成本</th>
-        <th>食材%</th>
         <th>薪資支出</th>
-        <th>薪資%</th>
         <th>固定費用</th>
-        <th>實際損益</th>
-        <th>損益率</th>
+        <th>淨損益</th>
+        <th>期末現金</th>
+        <th>現金差異</th>
         <th>備注</th>
       </tr></thead>
       <tbody id="summaryTable"></tbody>
@@ -556,23 +561,26 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 const MONTHS = ['9月','10月','11月','12月','1月','2月','3月'];
 const MONTH_LABELS = ['2025年9月','2025年10月','2025年11月','2025年12月','2026年1月','2026年2月','2026年3月'];
 const DATA = [
-  { revenue:21837,  food:null,    salary:29735,  note:'開幕月（22/9起）' },
-  { revenue:113163, food:50277,   salary:117990, note:'Uber上線' },
-  { revenue:167725, food:74494,   salary:103550, note:'' },
-  { revenue:313417, food:205585,  salary:103550, note:'首個月報月' },
-  { revenue:393365, food:162040,  salary:153305, note:'最高業績' },
-  { revenue:209409, food:83085,   salary:97935,  note:'' },
-  { revenue:284088, food:null,    salary:null,   note:'3月完結' },
+  { revenue:21837,  food:null,    salary:29735,  note:'開幕月',   cash_open:0,      cash_close:0,      cash_diff:0 },
+  { revenue:113163, food:50277,   salary:117990, note:'Uber上線', cash_open:0,      cash_close:0,      cash_diff:0 },
+  { revenue:167725, food:74494,   salary:103550, note:'',         cash_open:0,      cash_close:0,      cash_diff:0 },
+  { revenue:313417, food:205585,  salary:103550, note:'',         cash_open:130105, cash_close:94220,  cash_diff:0 },
+  { revenue:393365, food:162040,  salary:153305, note:'最高業績', cash_open:94220,  cash_close:183295, cash_diff:-4370 },
+  { revenue:209409, food:83085,   salary:97935,  note:'',         cash_open:183295, cash_close:27700,  cash_diff:123190 },
+  { revenue:284088, food:null,    salary:137830, note:'3月完結',  cash_open:27700,  cash_close:159710, cash_diff:0 },
 ];
 
+// 2月食材差異警告
+const FOOD_WARNINGS = { 5: { actual:50517, reported:83085, diff:32568 } };
+
 const FIXED_COSTS = [
-  { rent:0,     util:0,    accounting:0,    tax:0,     pos:0,   wifi:0   },
-  { rent:15750, util:5650, accounting:4000, tax:0,     pos:200, wifi:600 },
-  { rent:15750, util:5650, accounting:4000, tax:0,     pos:200, wifi:600 },
-  { rent:15750, util:5650, accounting:4000, tax:0,     pos:200, wifi:600 },
-  { rent:15750, util:5650, accounting:4000, tax:0,     pos:200, wifi:600 },
-  { rent:15750, util:5650, accounting:4000, tax:0,     pos:200, wifi:600 },
-  { rent:15750, util:5650, accounting:4000, tax:14204, pos:200, wifi:600 },
+  { rent:0,     util:0,    accounting:0,     tax:0,     pos:0,   wifi:0   },
+  { rent:0,     util:0,    accounting:0,     tax:0,     pos:200, wifi:600 },
+  { rent:0,     util:0,    accounting:0,     tax:0,     pos:200, wifi:600 },
+  { rent:15015, util:0,    accounting:0,     tax:0,     pos:200, wifi:600 },
+  { rent:15015, util:0,    accounting:35292, tax:1000,  pos:200, wifi:600 },
+  { rent:15015, util:0,    accounting:0,     tax:0,     pos:200, wifi:600 },
+  { rent:15750, util:5650, accounting:4000,  tax:14204, pos:200, wifi:600 },
 ];
 function fixedTotal(i) { const f = FIXED_COSTS[i]; return f ? f.rent + f.util + f.accounting + f.tax + f.pos + f.wifi : 0; }
 
@@ -696,6 +704,22 @@ function updateOverview() {
   ).join('');
   document.getElementById('fixed-cost-total').textContent = fmt(fc);
 
+  // Cash reconciliation
+  const cashEl = document.getElementById('cash-detail');
+  if (d.cash_open || d.cash_close) {
+    const expected = d.cash_open + (profit || 0);
+    const diff = d.cash_diff;
+    const diffColor = diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--accent)' : 'var(--green)';
+    const diffIcon = diff > 1000 ? ' ⚠️' : '';
+    cashEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--muted);">期初現金</span><span style="font-family:var(--mono);">${fmt(d.cash_open)}</span></div>
+      <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--muted);">期末現金</span><span style="font-family:var(--mono);">${fmt(d.cash_close)}</span></div>
+      <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--muted);">現金差異</span><span style="font-family:var(--mono);color:${diffColor};font-weight:600;">${diff ? fmt(Math.abs(diff)) + (diff > 0 ? ' 缺口' : ' 多報') : '$0'}${diffIcon}</span></div>
+    `;
+  } else {
+    cashEl.innerHTML = '<span style="color:var(--muted);font-size:11px;">無現金數據</span>';
+  }
+
   // Changes
   const revChange = prev ? ((d.revenue - prev.revenue)/prev.revenue*100).toFixed(1) : null;
   const revEl = document.getElementById('kpi-revenue-change');
@@ -758,18 +782,23 @@ function updateSummaryTable() {
   DATA.forEach((d,i) => {
     const fc = fixedTotal(i);
     const profit = d.food != null && d.salary != null ? d.revenue - d.food - d.salary - fc : null;
-    const margin = profit != null ? (profit/d.revenue*100).toFixed(1) : null;
     const active = i === currentMonth;
+    const fw = FOOD_WARNINGS[i];
+    const foodCell = fw
+      ? `<span title="庫存系統記錄 ${fmt(fw.actual)}，月報申報 ${fmt(fw.reported)}，差異 ${fmt(fw.diff)}" style="cursor:help;">${fmt(d.food)} ⚠️</span>`
+      : fmt(d.food);
+    const diff = d.cash_diff;
+    const diffColor = diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--accent)' : 'var(--muted)';
+    const diffText = diff > 0 ? fmt(diff) + ' ⚠️' : diff < 0 ? fmt(Math.abs(diff)) : '—';
     tb.innerHTML += `<tr style="${active?'background:rgba(232,160,69,0.06);':''}">
       <td class="L" style="${active?'color:var(--accent);font-weight:600;':''}">${MONTH_LABELS[i]}</td>
       <td>${fmt(d.revenue)}</td>
-      <td>${fmt(d.food)}</td>
-      <td style="color:var(--accent2);">${d.food ? pct(d.food,d.revenue) : '—'}</td>
-      <td>${fmt(d.salary)}</td>
-      <td style="color:#a78bfa;">${d.salary ? pct(d.salary,d.revenue) : '—'}</td>
+      <td style="color:var(--accent2);">${foodCell}</td>
+      <td style="color:#a78bfa;">${fmt(d.salary)}</td>
       <td style="color:var(--muted);">${fc ? fmt(fc) : '—'}</td>
       <td style="color:${profit>0?'var(--green)':'var(--red)'};">${fmt(profit)}</td>
-      <td style="color:${margin>20?'var(--green)':margin>0?'var(--accent)':'var(--red)'};">${margin ? margin+'%' : '—'}</td>
+      <td>${d.cash_close ? fmt(d.cash_close) : '—'}</td>
+      <td style="color:${diffColor};">${diffText}</td>
       <td><span class="badge ${d.note?'badge-amber':'badge-blue'}">${d.note||'—'}</span></td>
     </tr>`;
   });
