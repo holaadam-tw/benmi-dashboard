@@ -693,6 +693,9 @@ function migrateToSupabase() {
     } else {
       purchaseDate = null;
     }
+    if (purchaseDate && !/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate)) {
+      purchaseDate = null;
+    }
 
     const amount = row[7] !== '' && row[7] !== null ? parseFloat(row[7]) || null : null;
 
