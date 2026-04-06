@@ -758,7 +758,7 @@ function buildProducts() {
 // ── Load invoices from Google Sheets ──
 const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhrTVj6ZRhhNafyDDqkoHcB9C7pgF-b7YcZwWDINKL8yElLH45lptTwigLKF-N0gtiwBOPHNsqCueF/pub?gid=390599286&single=true&output=csv';
 const GAS_URL   = 'https://script.google.com/macros/s/AKfycby2jXOcndmV6xsbhTSEGweLduhNY_6V4cgmIUxMaUfHbmuGni6hHpS93W-cLzofLoW8AQ/exec';
-const CATEGORIES = ['','麵包/法棍','肉類','蔬菜/配料','醬料/調味','飲品','包材','乳製品','清潔用品','食品','其他'];
+const CATEGORIES = ['','麵包/法棍','肉類','蔬菜/配料','醬料/調味','飲品','包材','乳製品','清潔用品','食品','電費','水費','房租','其他'];
 
 // ── sessionStorage 暫存 ──
 function getEdits() {
@@ -1518,7 +1518,7 @@ const I18N = {
     kpi_revenue:'POS 業績', kpi_food:'食材成本', kpi_salary:'薪資支出', kpi_profit:'毛利',
     month_overview:'月度總覽', salary_title:'薪資與工時明細',
     cat_bread:'麵包/法棍', cat_meat:'肉類', cat_veg:'蔬菜/配料', cat_sauce:'醬料/調味',
-    cat_drink:'飲品', cat_pack:'包材', cat_dairy:'乳製品', cat_clean:'清潔用品', cat_food:'食品', cat_other:'其他',
+    cat_drink:'飲品', cat_pack:'包材', cat_dairy:'乳製品', cat_clean:'清潔用品', cat_food:'食品', cat_elec:'電費', cat_water:'水費', cat_rent:'房租', cat_other:'其他',
   },
   vi: {
     tab_overview:'Tổng quan', tab_purchase:'Hóa đơn', tab_salary:'Lương & giờ', tab_products:'Doanh thu',
@@ -1532,7 +1532,7 @@ const I18N = {
     kpi_revenue:'Doanh thu POS', kpi_food:'Chi phí nguyên liệu', kpi_salary:'Chi phí lương', kpi_profit:'Lợi nhuận gộp',
     month_overview:'Tổng quan tháng', salary_title:'Chi tiết lương & giờ làm',
     cat_bread:'Bánh mì', cat_meat:'Thịt', cat_veg:'Rau/Gia vị', cat_sauce:'Nước chấm/Sốt',
-    cat_drink:'Đồ uống', cat_pack:'Bao bì', cat_dairy:'Sữa/Phô mai', cat_clean:'Đồ vệ sinh', cat_food:'Thực phẩm', cat_other:'Khác',
+    cat_drink:'Đồ uống', cat_pack:'Bao bì', cat_dairy:'Sữa/Phô mai', cat_clean:'Đồ vệ sinh', cat_food:'Thực phẩm', cat_elec:'Tiền điện', cat_water:'Tiền nước', cat_rent:'Tiền thuê', cat_other:'Khác',
   }
 };
 
