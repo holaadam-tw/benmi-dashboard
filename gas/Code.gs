@@ -75,6 +75,34 @@ function supabaseFindByHash(hash) {
   } catch(e) { return null; }
 }
 
+function uploadToSupabaseStorage(imageBase64, fileName) {
+  if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_KEY) return null;
+  try {
+    const bytes = Utilities.base64Decode(imageBase64);
+    const blob  = Utilities.newBlob(bytes, 'image/jpeg', fileName);
+    const res   = UrlFetchApp.fetch(
+      CONFIG.SUPABASE_URL + '/storage/v1/object/invoices/' + encodeURIComponent(fileName), {
+      method: 'post',
+      headers: {
+        'apikey': CONFIG.SUPABASE_KEY,
+        'Authorization': 'Bearer ' + CONFIG.SUPABASE_KEY,
+        'Content-Type': 'image/jpeg'
+      },
+      payload: blob.getBytes(),
+      muteHttpExceptions: true
+    });
+    const code = res.getResponseCode();
+    if (code === 200 || code === 201) {
+      return CONFIG.SUPABASE_URL + '/storage/v1/object/public/invoices/' + encodeURIComponent(fileName);
+    }
+    Logger.log('Supabase storage ' + code + ': ' + res.getContentText());
+    return null;
+  } catch(e) {
+    Logger.log('Supabase storage error: ' + e.toString());
+    return null;
+  }
+}
+
 // ================================================================
 // GET：Webhook 驗證 + Dashboard 欄位更新
 // ================================================================
@@ -163,7 +191,10 @@ function handleDashboardUpload(body) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     const fileId   = file.getId();
     const fileUrl  = 'https://drive.google.com/file/d/' + fileId + '/view';
-    const thumbUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w400';
+
+    // 同步上傳到 Supabase Storage
+    const sbThumb  = uploadToSupabaseStorage(imageBase64, fileName);
+    const thumbUrl = sbThumb || ('https://drive.google.com/thumbnail?id=' + fileId + '&sz=w400');
 
     // 記錄
     logToSheet(new Date(), uploader, fileName, fileUrl, thumbUrl, hashVal, ocr);
@@ -222,9 +253,13 @@ function handleLineImage(messageId, senderName, timestamp, replyToken) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     const fileId   = file.getId();
     const fileUrl  = 'https://drive.google.com/file/d/' + fileId + '/view';
-    const thumbUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w400';
 
     const imageBase64 = Utilities.base64Encode(bytes);
+
+    // 同步上傳到 Supabase Storage
+    const sbThumb  = uploadToSupabaseStorage(imageBase64, fileName);
+    const thumbUrl = sbThumb || ('https://drive.google.com/thumbnail?id=' + fileId + '&sz=w400');
+
     const ocr = recognizeInvoice(imageBase64);
 
     logToSheet(timestamp, senderName, fileName, fileUrl, thumbUrl, hashVal, ocr);
