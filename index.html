@@ -1155,7 +1155,7 @@ function _autoLock() {
   if (!isUnlocked()) return;
   sessionStorage.removeItem('admin_unlocked');
   _updateLockUI();
-  if (_invRows.length) renderInvoiceTable();
+  if (window._invRows.length) renderInvoiceTable();
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) _autoLock(); });
 window.addEventListener('blur', _autoLock);
@@ -1169,11 +1169,11 @@ async function deleteInvoice(id) {
   const { error } = await sb.from('invoices').delete().eq('id', id);
   console.log('delete result:', error);
   if (!error) {
-    console.log('before delete, _invRows length:', _invRows.length);
+    console.log('before delete, window._invRows length:', window._invRows.length);
     console.log('filtering id:', id, typeof id);
-    console.log('first row id sample:', _invRows[0]?.id, typeof _invRows[0]?.id);
-    _invRows = _invRows.filter(r => r.id !== id);
-    console.log('after delete, _invRows length:', _invRows.length);
+    console.log('first row id sample:', window._invRows[0]?.id, typeof window._invRows[0]?.id);
+    window._invRows = window._invRows.filter(r => r.id !== id);
+    console.log('after delete, window._invRows length:', window._invRows.length);
     buildMonthFilter();
     renderInvoiceTable();
     console.log('rendered, tbody rows:', document.getElementById('inv-tbody').rows.length);
@@ -1184,7 +1184,7 @@ async function deleteInvoice(id) {
 }
 
 async function toggleConfirmed(id, checked) {
-  const row = _invRows.find(r => r.id === id);
+  const row = window._invRows.find(r => r.id === id);
   if (row) row.confirmed = checked;
   renderInvoiceTable();
   await sb.from('invoices').update({ confirmed: checked }).eq('id', id);
@@ -1196,8 +1196,8 @@ let _invMonthFilter = sessionStorage.getItem('inv_month_filter') || '';
 function _purchaseMonth(r) { return (r.purchase_date||'').slice(0,7); }
 
 function buildMonthFilter() {
-  const months = [...new Set(_invRows.map(r => _purchaseMonth(r)).filter(Boolean))].sort().reverse();
-  const hasNoDate = _invRows.some(r => !_purchaseMonth(r));
+  const months = [...new Set(window._invRows.map(r => _purchaseMonth(r)).filter(Boolean))].sort().reverse();
+  const hasNoDate = window._invRows.some(r => !_purchaseMonth(r));
   const container = document.getElementById('month-filter');
   container.innerHTML = '';
   const btnStyle = (active) => 'padding:5px 12px;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-size:11px;font-weight:600;' +
@@ -1215,9 +1215,9 @@ function buildMonthFilter() {
 }
 
 function getFilteredRows() {
-  if (!_invMonthFilter) return _invRows;
-  if (_invMonthFilter === '_nodate') return _invRows.filter(r => !_purchaseMonth(r));
-  return _invRows.filter(r => _purchaseMonth(r) === _invMonthFilter);
+  if (!_invMonthFilter) return window._invRows;
+  if (_invMonthFilter === '_nodate') return window._invRows.filter(r => !_purchaseMonth(r));
+  return window._invRows.filter(r => _purchaseMonth(r) === _invMonthFilter);
 }
 
 function updateFilteredKPI() {
@@ -1231,7 +1231,7 @@ function updateFilteredKPI() {
 }
 
 // ── 排序（sessionStorage 記住）──
-let _invRows = [];
+window._invRows = [];
 let _invNavList = [];
 let _invSort = (function() {
   try {
@@ -1422,8 +1422,8 @@ function saveField(id, field, value) {
 
   const val = field === 'amount' ? (parseFloat(value) || null) : (value || null);
 
-  // 同步本地 _invRows
-  const row = _invRows.find(r => r.id === id);
+  // 同步本地 window._invRows
+  const row = window._invRows.find(r => r.id === id);
   if (row) row[col] = val;
 
   sb.from('invoices').update({ [col]: val }).eq('id', id)
@@ -1455,7 +1455,7 @@ async function loadInvoices() {
       return;
     }
 
-    _invRows = rows;
+    window._invRows = rows;
     _applySortArrows();
     buildMonthFilter();
 
