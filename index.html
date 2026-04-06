@@ -1218,7 +1218,37 @@ function renderInvoiceTable() {
   const tbody = document.getElementById('inv-tbody');
   tbody.innerHTML = '';
   const total = rows.length;
+  const colSpan = 10; // total columns including confirm + delete
+
+  // 按月份分組（不影響排序，只插入標題列）
+  let lastMonth = '';
+  // 預計算每月統計
+  const monthStats = {};
+  rows.forEach(r => {
+    const ym = (r.upload_date || '').slice(0, 7);
+    if (!ym) return;
+    if (!monthStats[ym]) monthStats[ym] = { count: 0, total: 0 };
+    monthStats[ym].count++;
+    monthStats[ym].total += parseFloat(r.amount) || 0;
+  });
+
   rows.forEach((r, i) => {
+    // 插入月份分隔標題
+    const ym = (r.upload_date || '').slice(0, 7);
+    if (ym && ym !== lastMonth) {
+      lastMonth = ym;
+      const [y, m] = ym.split('-');
+      const label = y + '年' + parseInt(m) + '月';
+      const st = monthStats[ym] || { count: 0, total: 0 };
+      const totalStr = st.total ? '$' + Math.round(st.total).toLocaleString() : '—';
+      tbody.innerHTML += `<tr>
+        <td colspan="${colSpan}" style="background:var(--surface2);padding:10px 16px;border-bottom:2px solid var(--border);border-left:3px solid var(--accent);">
+          <span style="font-size:13px;font-weight:700;color:var(--text);font-family:var(--sans);">${label}</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:12px;">${st.count} 筆</span>
+          <span style="font-size:11px;color:var(--accent);margin-left:8px;font-family:var(--mono);">${totalStr}</span>
+        </td>
+      </tr>`;
+    }
     const id       = r.id;
     const dateStr  = r.upload_date || '';
     const timeStr  = r.upload_time || '';
