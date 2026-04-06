@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>本米麵包 — 營運報表</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 <style>
@@ -1169,6 +1170,7 @@ async function deleteInvoice(id) {
   console.log('delete result:', error);
   if (!error) {
     _invRows = _invRows.filter(r => r.id !== id);
+    buildMonthFilter();
     renderInvoiceTable();
     updateFilteredKPI();
   } else {
