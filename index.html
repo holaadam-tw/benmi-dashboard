@@ -429,7 +429,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   <!-- 圖片模式 -->
   <div id="lb-viewport" style="flex:1;overflow:hidden;position:relative;cursor:grab;user-select:none;display:none;">
     <img id="lb-img" draggable="false"
-      style="position:absolute;transform-origin:0 0;max-width:none;"
+      style="position:absolute;transform-origin:50% 50%;max-width:none;"
       onload="lbFitImage()" />
   </div>
   <!-- Drive iframe 模式 -->
@@ -1133,19 +1133,11 @@ function lbApply() {
   const isRotated = (lb.rotate % 180) !== 0;
   const visW = (isRotated ? nh : nw) * lb.scale;
   const visH = (isRotated ? nw : nh) * lb.scale;
-  // lb.x, lb.y = top-left of the visual bounding box
-  // center of the visual box
-  const cx = lb.x + visW / 2;
-  const cy = lb.y + visH / 2;
-  // transform-origin: 0 0; order: translate → rotate → scale (applied right-to-left)
-  // After scale+rotate at origin, compute offset to shift center of rotated bbox to (cx, cy)
-  const halfSW = nw * lb.scale / 2;
-  const halfSH = nh * lb.scale / 2;
-  const rad = lb.rotate * Math.PI / 180;
-  // Center of rotated scaled image (rotated around origin) is at:
-  const rcx = halfSW * Math.cos(rad) - halfSH * Math.sin(rad);
-  const rcy = halfSW * Math.sin(rad) + halfSH * Math.cos(rad);
-  img.style.transform = `translate(${cx - rcx}px,${cy - rcy}px) rotate(${lb.rotate}deg) scale(${lb.scale})`;
+  // transform-origin: 50% 50% → rotate/scale 都以圖片中心為基準
+  // lb.x, lb.y = 可見區域左上角；算出 translate 讓圖片中心落在正確位置
+  const tx = lb.x + visW / 2 - nw / 2;
+  const ty = lb.y + visH / 2 - nh / 2;
+  img.style.transform = `translate(${tx}px,${ty}px) scale(${lb.scale}) rotate(${lb.rotate}deg)`;
   document.getElementById('lb-zoom-label').textContent = Math.round(lb.scale * 100) + '%';
 }
 
