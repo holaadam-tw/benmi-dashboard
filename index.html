@@ -420,6 +420,9 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <button onclick="lbZoom(1.25)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;">＋</button>
         <button onclick="lbReset()"    style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:12px;">⟳</button>
       </div>
+      <button onclick="lbRotate(-90)" title="逆時針旋轉" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;">↺</button>
+      <button onclick="lbRotate(90)" title="順時針旋轉" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;">↻</button>
+      <button id="lb-save-rotate" onclick="lbSaveRotation()" title="儲存旋轉" style="display:none;background:var(--surface2);border:1px solid var(--accent);color:var(--accent);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:12px;line-height:1;">💾</button>
       <button onclick="closeLightbox()" style="background:rgba(240,101,101,0.2);border:1px solid var(--red);color:var(--red);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">✕</button>
     </div>
   </div>
@@ -435,7 +438,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   </div>
   <!-- 提示 -->
   <div id="lb-hint" style="text-align:center;padding:4px;font-size:10px;color:var(--muted);flex-shrink:0;border-top:1px solid var(--border);">
-    滾輪縮放 · 拖曳平移 · 右下角可調整大小
+    滾輪縮放 · 拖曳平移 · ↺↻ 旋轉 · 右下角可調整大小
   </div>
 </div>
 
@@ -1033,7 +1036,7 @@ function handleDrop(e) {
 }
 
 // ── 燈箱：支援縮放、平移 ──
-let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0, index:-1, list:[] };
+let lb = { scale:1, x:0, y:0, dragging:false, startX:0, startY:0, index:-1, list:[], rotate:0 };
 
 function openLightbox(id) {
   lb.list = _invNavList;
@@ -1073,9 +1076,11 @@ function _lbShowCurrent() {
     document.getElementById('lb-viewport').style.display = 'block';
     document.getElementById('lb-iframe-wrap').style.display = 'none';
     document.getElementById('lb-zoom-controls').style.display = 'flex';
-    document.getElementById('lb-hint').textContent = '← → 切換 · 滾輪縮放 · ESC 關閉';
+    document.getElementById('lb-hint').textContent = '← → 切換 · 滾輪縮放 · ↺↻ 旋轉 · ESC 關閉';
     document.getElementById('lb-iframe').src = '';
     lb.scale = 1; lb.x = 0; lb.y = 0;
+    lb.rotate = r.rotation || 0;
+    document.getElementById('lb-save-rotate').style.display = 'inline-block';
     document.getElementById('lb-img').src = sbUrl;
   } else {
     // Drive 圖片：用 iframe /preview 模式（不需登入）
@@ -1084,6 +1089,8 @@ function _lbShowCurrent() {
     document.getElementById('lb-viewport').style.display = 'none';
     document.getElementById('lb-iframe-wrap').style.display = 'block';
     document.getElementById('lb-zoom-controls').style.display = 'none';
+    document.getElementById('lb-save-rotate').style.display = 'none';
+    lb.rotate = 0;
     document.getElementById('lb-hint').textContent = '← → 切換 · ESC 關閉';
     document.getElementById('lb-iframe').src = embedUrl;
   }
@@ -1110,16 +1117,35 @@ function lbFitImage() {
   const vp  = document.getElementById('lb-viewport');
   const img = document.getElementById('lb-img');
   const vpW = vp.clientWidth, vpH = vp.clientHeight;
-  const ratio = Math.min((vpW * 0.92) / img.naturalWidth, (vpH * 0.92) / img.naturalHeight, 1);
+  const isRotated = (lb.rotate % 180) !== 0;
+  const imgW = isRotated ? img.naturalHeight : img.naturalWidth;
+  const imgH = isRotated ? img.naturalWidth  : img.naturalHeight;
+  const ratio = Math.min((vpW * 0.92) / imgW, (vpH * 0.92) / imgH, 1);
   lb.scale = ratio;
-  lb.x = (vpW - img.naturalWidth  * ratio) / 2;
-  lb.y = (vpH - img.naturalHeight * ratio) / 2;
+  lb.x = (vpW - imgW * ratio) / 2;
+  lb.y = (vpH - imgH * ratio) / 2;
   lbApply();
 }
 
 function lbApply() {
   const img = document.getElementById('lb-img');
-  img.style.transform = `translate(${lb.x}px,${lb.y}px) scale(${lb.scale})`;
+  const nw = img.naturalWidth, nh = img.naturalHeight;
+  const isRotated = (lb.rotate % 180) !== 0;
+  const visW = (isRotated ? nh : nw) * lb.scale;
+  const visH = (isRotated ? nw : nh) * lb.scale;
+  // lb.x, lb.y = top-left of the visual bounding box
+  // center of the visual box
+  const cx = lb.x + visW / 2;
+  const cy = lb.y + visH / 2;
+  // transform-origin: 0 0; order: translate → rotate → scale (applied right-to-left)
+  // After scale+rotate at origin, compute offset to shift center of rotated bbox to (cx, cy)
+  const halfSW = nw * lb.scale / 2;
+  const halfSH = nh * lb.scale / 2;
+  const rad = lb.rotate * Math.PI / 180;
+  // Center of rotated scaled image (rotated around origin) is at:
+  const rcx = halfSW * Math.cos(rad) - halfSH * Math.sin(rad);
+  const rcy = halfSW * Math.sin(rad) + halfSH * Math.cos(rad);
+  img.style.transform = `translate(${cx - rcx}px,${cy - rcy}px) rotate(${lb.rotate}deg) scale(${lb.scale})`;
   document.getElementById('lb-zoom-label').textContent = Math.round(lb.scale * 100) + '%';
 }
 
@@ -1134,7 +1160,32 @@ function lbZoom(factor) {
   lbApply();
 }
 
-function lbReset() { lbFitImage(); }
+function lbReset() { lb.rotate = 0; lbFitImage(); }
+
+function lbRotate(deg) {
+  lb.rotate = ((lb.rotate + deg) % 360 + 360) % 360;
+  lbFitImage();
+}
+
+async function lbSaveRotation() {
+  if (lb.index < 0 || !lb.list.length) return;
+  const r = lb.list[lb.index];
+  if (!_isSupabaseUrl(r.thumb_url)) return;
+  const btn = document.getElementById('lb-save-rotate');
+  btn.textContent = '⏳';
+  btn.disabled = true;
+  try {
+    const { error } = await sb.from('invoices').update({ rotation: lb.rotate }).eq('id', r.id);
+    if (error) throw new Error(error.message);
+    r.rotation = lb.rotate;
+    btn.textContent = '✅';
+    setTimeout(() => { btn.textContent = '💾'; btn.disabled = false; }, 1500);
+  } catch(e) {
+    alert('儲存旋轉失敗：' + e.message);
+    btn.textContent = '💾';
+    btn.disabled = false;
+  }
+}
 
 function closeLightbox() {
   document.getElementById('lightbox').style.display = 'none';
@@ -1530,7 +1581,7 @@ function renderInvoiceTable() {
            ${previewSrc
              ? `<div class="thumb-spinner"></div>
                 <img src="${previewSrc}" loading="lazy" decoding="async" class="thumb-img"
-                  style="width:100%;height:100%;object-fit:cover;"
+                  style="width:100%;height:100%;object-fit:cover;${r.rotation ? 'transform:rotate('+r.rotation+'deg);' : ''}"
                   onload="this.classList.add('loaded');this.previousElementSibling.style.display='none'"
                   onerror="${onErrScript}"/>
                 <span style="display:none;font-size:18px;color:var(--accent2);">📷</span>`
