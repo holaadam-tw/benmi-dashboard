@@ -1042,6 +1042,8 @@ function openLightbox(id) {
   lb.list = _invNavList;
   lb.index = lb.list.findIndex(r => r.id === id);
   if (lb.index < 0) lb.index = 0;
+  lb.rotate = 0;
+  document.getElementById('lb-iframe-wrap').style.transform = '';
   _lbShowCurrent();
 }
 
@@ -1160,15 +1162,23 @@ function lbReset() {
 }
 
 function lbRotate(deg) {
-  lb.rotate = ((lb.rotate + deg) % 360 + 360) % 360;
-  const iframeWrap = document.getElementById('lb-iframe-wrap');
-  if (iframeWrap.style.display !== 'none') {
-    // Drive iframe 模式：旋轉整個 iframe-wrap
-    iframeWrap.style.transform = `rotate(${lb.rotate}deg)`;
-  } else {
-    // Supabase img 模式：重新計算置中
-    lbFitImage();
+  lb.rotate = ((lb.rotate || 0) + deg + 360) % 360;
+
+  // 圖片模式
+  const img = document.getElementById('lb-img');
+  if (img && document.getElementById('lb-viewport').style.display !== 'none') {
+    lbApply();
   }
+
+  // iframe 模式
+  const wrap = document.getElementById('lb-iframe-wrap');
+  if (wrap && wrap.style.display !== 'none') {
+    wrap.style.transform = `rotate(${lb.rotate}deg)`;
+    wrap.style.transition = 'transform 0.3s ease';
+  }
+
+  const label = document.getElementById('lb-rotate-label');
+  if (label) label.textContent = lb.rotate ? lb.rotate + '°' : '';
 }
 
 async function lbSaveRotation() {
