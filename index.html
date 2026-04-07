@@ -1091,7 +1091,8 @@ function _lbShowCurrent() {
     document.getElementById('lb-zoom-controls').style.display = 'none';
     document.getElementById('lb-save-rotate').style.display = 'none';
     lb.rotate = 0;
-    document.getElementById('lb-hint').textContent = '← → 切換 · ESC 關閉';
+    document.getElementById('lb-iframe-wrap').style.transform = '';
+    document.getElementById('lb-hint').textContent = '← → 切換 · ↺↻ 旋轉 · ESC 關閉';
     document.getElementById('lb-iframe').src = embedUrl;
   }
 
@@ -1152,11 +1153,22 @@ function lbZoom(factor) {
   lbApply();
 }
 
-function lbReset() { lb.rotate = 0; lbFitImage(); }
+function lbReset() {
+  lb.rotate = 0;
+  document.getElementById('lb-iframe-wrap').style.transform = '';
+  lbFitImage();
+}
 
 function lbRotate(deg) {
   lb.rotate = ((lb.rotate + deg) % 360 + 360) % 360;
-  lbFitImage();
+  const iframeWrap = document.getElementById('lb-iframe-wrap');
+  if (iframeWrap.style.display !== 'none') {
+    // Drive iframe 模式：旋轉整個 iframe-wrap
+    iframeWrap.style.transform = `rotate(${lb.rotate}deg)`;
+  } else {
+    // Supabase img 模式：重新計算置中
+    lbFitImage();
+  }
 }
 
 async function lbSaveRotation() {
@@ -1183,6 +1195,7 @@ function closeLightbox() {
   document.getElementById('lightbox').style.display = 'none';
   document.getElementById('lb-img').src = '';
   document.getElementById('lb-iframe').src = '';
+  document.getElementById('lb-iframe-wrap').style.transform = '';
   _highlightRow(null);
 }
 
