@@ -148,6 +148,31 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
 .thumb-spinner::after { content:''; width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.6s linear infinite; }
 .thumb-img { opacity:0; transition:opacity 0.3s; }
 .thumb-img.loaded { opacity:1; }
+
+/* ── 驗證面板 ── */
+#verify-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:10000; }
+#verify-panel { position:absolute; inset:20px; display:flex; gap:0; background:var(--surface); border-radius:12px; overflow:hidden; box-shadow:0 12px 48px rgba(0,0,0,0.6); }
+#verify-img-side { flex:1; background:#0a0b0e; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:grab; user-select:none; }
+#verify-img-side img { max-width:92%; max-height:92%; object-fit:contain; border-radius:4px; }
+#verify-form-side { width:360px; display:flex; flex-direction:column; border-left:1px solid var(--border); }
+.vf-header { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.vf-body { flex:1; overflow-y:auto; padding:18px; }
+.vf-field { margin-bottom:16px; }
+.vf-label { font-size:11px; color:var(--muted); margin-bottom:4px; font-weight:600; }
+.vf-ocr { font-size:11px; color:var(--red); margin-bottom:4px; font-family:var(--mono); opacity:0.8; }
+.vf-ocr.ok { color:var(--green); }
+.vf-input { width:100%; padding:8px 10px; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:6px; font-size:13px; font-family:var(--sans); box-sizing:border-box; }
+.vf-input:focus { border-color:var(--accent); outline:none; }
+.vf-select { width:100%; padding:8px 10px; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:6px; font-size:13px; cursor:pointer; font-family:var(--sans); }
+.vf-warn { background:rgba(240,101,101,0.1); border-color:var(--red); }
+.vf-footer { padding:14px 18px; border-top:1px solid var(--border); display:flex; gap:8px; align-items:center; }
+.vf-btn { padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; font-family:var(--sans); border:none; }
+.vf-btn-confirm { background:var(--green); color:#000; }
+.vf-btn-skip { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+.vf-btn-close { background:rgba(240,101,101,0.15); color:var(--red); border:1px solid var(--red); }
+.vf-counter { font-size:11px; color:var(--muted); font-family:var(--mono); flex:1; text-align:center; }
+.vf-anomaly { display:inline-block; font-size:9px; padding:2px 6px; border-radius:3px; margin-left:6px; }
+
 .kpi { animation:fadeUp 0.4s ease both; }
 .kpi:nth-child(1) { animation-delay:0.05s; }
 .kpi:nth-child(2) { animation-delay:0.1s; }
@@ -326,6 +351,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       <div id="acct-summary" style="font-size:10px;color:var(--muted);text-align:right;"></div>
+      <button id="btn-verify" onclick="openVerifyPanel()" style="background:rgba(240,101,101,0.15);border:1px solid var(--red);color:var(--red);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--sans);display:none;">🔍 待驗證 <span id="verify-badge">0</span></button>
       <button onclick="exportAccounting()" style="background:var(--green);border:none;color:#000;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--sans);">導出會計報表</button>
       <button onclick="loadInvoices()" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--sans);">↻ 重新載入</button>
     </div>
@@ -439,6 +465,71 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   <!-- 提示 -->
   <div id="lb-hint" style="text-align:center;padding:4px;font-size:10px;color:var(--muted);flex-shrink:0;border-top:1px solid var(--border);">
     滾輪縮放 · 拖曳平移 · ↺↻ 旋轉 · 右下角可調整大小
+  </div>
+</div>
+
+<!-- ══ 批次驗證面板 ══ -->
+<div id="verify-overlay">
+  <div id="verify-panel">
+    <div id="verify-img-side">
+      <img id="vf-img" draggable="false" />
+      <div id="vf-img-placeholder" style="color:var(--muted);font-size:14px;position:absolute;">載入圖片中...</div>
+    </div>
+    <div id="verify-form-side">
+      <div class="vf-header">
+        <div style="font-size:14px;font-weight:700;">發票驗證</div>
+        <button onclick="closeVerifyPanel()" class="vf-btn vf-btn-close" style="padding:4px 10px;">✕ 關閉</button>
+      </div>
+      <div class="vf-body">
+        <div style="margin-bottom:14px;padding:10px;background:var(--surface2);border-radius:8px;">
+          <div style="font-size:11px;color:var(--muted);">上傳資訊</div>
+          <div id="vf-upload-info" style="font-size:12px;margin-top:4px;"></div>
+        </div>
+
+        <div class="vf-field">
+          <div class="vf-label">購買日期</div>
+          <div id="vf-ocr-date" class="vf-ocr"></div>
+          <input type="date" id="vf-date" class="vf-input" />
+        </div>
+
+        <div class="vf-field">
+          <div class="vf-label">金額</div>
+          <div id="vf-ocr-amount" class="vf-ocr"></div>
+          <div style="position:relative;">
+            <span style="position:absolute;left:10px;top:8px;color:var(--muted);font-size:13px;">$</span>
+            <input type="number" id="vf-amount" class="vf-input" style="padding-left:22px;" placeholder="輸入金額" />
+          </div>
+        </div>
+
+        <div class="vf-field">
+          <div class="vf-label">品項分類</div>
+          <div id="vf-ocr-category" class="vf-ocr"></div>
+          <select id="vf-category" class="vf-select"></select>
+        </div>
+
+        <div class="vf-field">
+          <div class="vf-label">憑證類型</div>
+          <select id="vf-invoice-type" class="vf-select">
+            <option value="receipt">收據</option>
+            <option value="invoice">發票</option>
+            <option value="none">無憑證</option>
+          </select>
+        </div>
+
+        <div class="vf-field">
+          <div class="vf-label">備注</div>
+          <input type="text" id="vf-note" class="vf-input" placeholder="選填" />
+        </div>
+
+        <div id="vf-anomalies" style="margin-top:8px;"></div>
+      </div>
+      <div class="vf-footer">
+        <button onclick="verifyNav(-1)" class="vf-btn vf-btn-skip" style="padding:8px 12px;">← 上一筆</button>
+        <div class="vf-counter"><span id="vf-pos">1</span> / <span id="vf-total">0</span></div>
+        <button onclick="verifySkip()" class="vf-btn vf-btn-skip">跳過 →</button>
+        <button onclick="verifySave()" class="vf-btn vf-btn-confirm">✓ 確認</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1722,6 +1813,7 @@ async function loadInvoices() {
 
     document.getElementById('inv-loading').style.display = 'none';
     document.getElementById('inv-table').style.display = 'table';
+    _updateVerifyBadge();
 
   } catch(e) {
     document.getElementById('inv-loading').innerHTML =
@@ -1729,6 +1821,203 @@ async function loadInvoices() {
   }
 }
 
+// ── 批次驗證面板 ──
+let _vfList = [];
+let _vfIndex = 0;
+
+function _isAnomalyDate(row) {
+  const d = row.purchase_date;
+  if (!d) return 'missing';
+  const y = parseInt(d.substring(0, 4));
+  if (y < 2024 || d > new Date().toISOString().slice(0, 10)) return 'invalid';
+  const uploadMonth = (row.upload_date || '').slice(0, 7);
+  const purchaseMonth = d.slice(0, 7);
+  if (uploadMonth && purchaseMonth && Math.abs(
+    (parseInt(uploadMonth.slice(0, 4)) * 12 + parseInt(uploadMonth.slice(5, 7))) -
+    (parseInt(purchaseMonth.slice(0, 4)) * 12 + parseInt(purchaseMonth.slice(5, 7)))
+  ) > 2) return 'suspicious';
+  return null;
+}
+
+function _getUnverifiedRows() {
+  return (window._invRows || []).filter(r => !r.confirmed && (r.drive_url || r.thumb_url));
+}
+
+function _updateVerifyBadge() {
+  const count = _getUnverifiedRows().length;
+  const btn = document.getElementById('btn-verify');
+  const badge = document.getElementById('verify-badge');
+  if (btn) btn.style.display = count > 0 ? 'inline-block' : 'none';
+  if (badge) badge.textContent = count;
+}
+
+function openVerifyPanel() {
+  _vfList = _getUnverifiedRows();
+  if (!_vfList.length) { alert('所有發票都已驗證！'); return; }
+  _vfIndex = 0;
+  // 填入分類選項
+  const sel = document.getElementById('vf-category');
+  sel.innerHTML = '<option value="">— 選擇品項 —</option>' +
+    CATEGORIES.filter(Boolean).map(c => '<option value="'+c+'">'+c+'</option>').join('');
+  document.getElementById('verify-overlay').style.display = 'block';
+  _vfShow();
+}
+
+function closeVerifyPanel() {
+  document.getElementById('verify-overlay').style.display = 'none';
+  document.getElementById('vf-img').src = '';
+  renderInvoiceTable();
+  updateAcctSummary();
+  _updateVerifyBadge();
+}
+
+function _vfShow() {
+  if (_vfIndex < 0) _vfIndex = 0;
+  if (_vfIndex >= _vfList.length) { closeVerifyPanel(); alert('已驗證完所有發票！'); return; }
+  const r = _vfList[_vfIndex];
+
+  // 計數
+  document.getElementById('vf-pos').textContent = _vfIndex + 1;
+  document.getElementById('vf-total').textContent = _vfList.length;
+
+  // 上傳資訊
+  document.getElementById('vf-upload-info').innerHTML =
+    '<span style="color:var(--text);">' + (r.sender || '—') + '</span>' +
+    ' · ' + (r.upload_date || '') + ' ' + (r.upload_time || '') +
+    '<br><span style="font-size:10px;color:var(--muted);">ID: ' + (r.id || '').slice(0, 8) + '…</span>';
+
+  // 圖片
+  const img = document.getElementById('vf-img');
+  const placeholder = document.getElementById('vf-img-placeholder');
+  placeholder.style.display = 'block';
+  img.style.display = 'none';
+  const thumbId = _driveFileId(r.thumb_url || r.drive_url);
+  if (_isSupabaseUrl(r.thumb_url)) {
+    img.src = r.thumb_url;
+  } else if (thumbId) {
+    img.src = 'https://drive.google.com/thumbnail?id=' + thumbId + '&sz=w800';
+  }
+  img.onload = function() { placeholder.style.display = 'none'; img.style.display = 'block'; };
+  img.onerror = function() { placeholder.textContent = '圖片載入失敗'; };
+
+  // 旋轉
+  const rot = r.rotation || 0;
+  img.style.transform = rot ? 'rotate(' + rot + 'deg)' : '';
+
+  // 填入目前值
+  document.getElementById('vf-date').value = r.purchase_date || '';
+  document.getElementById('vf-amount').value = r.amount || '';
+  document.getElementById('vf-category').value = r.category || '';
+  document.getElementById('vf-invoice-type').value = r.invoice_type || 'receipt';
+  document.getElementById('vf-note').value = r.note || '';
+
+  // OCR 原始值提示 + 異常偵測
+  const dateAnomaly = _isAnomalyDate(r);
+  const ocrDateEl = document.getElementById('vf-ocr-date');
+  if (dateAnomaly === 'missing') {
+    ocrDateEl.textContent = '⚠ 未填日期';
+    ocrDateEl.className = 'vf-ocr';
+    document.getElementById('vf-date').className = 'vf-input vf-warn';
+  } else if (dateAnomaly) {
+    ocrDateEl.textContent = '⚠ 日期異常: ' + r.purchase_date + '（上傳日: ' + r.upload_date + '）';
+    ocrDateEl.className = 'vf-ocr';
+    document.getElementById('vf-date').className = 'vf-input vf-warn';
+  } else {
+    ocrDateEl.textContent = '✓ ' + r.purchase_date;
+    ocrDateEl.className = 'vf-ocr ok';
+    document.getElementById('vf-date').className = 'vf-input';
+  }
+
+  const ocrAmtEl = document.getElementById('vf-ocr-amount');
+  if (!r.amount) {
+    ocrAmtEl.textContent = '⚠ 未填金額';
+    ocrAmtEl.className = 'vf-ocr';
+    document.getElementById('vf-amount').className = 'vf-input vf-warn';
+  } else {
+    ocrAmtEl.textContent = '✓ $' + Math.round(r.amount).toLocaleString();
+    ocrAmtEl.className = 'vf-ocr ok';
+    document.getElementById('vf-amount').className = 'vf-input';
+  }
+  // 金額 $ 前綴的 padding 保持
+  document.getElementById('vf-amount').style.paddingLeft = '22px';
+
+  const ocrCatEl = document.getElementById('vf-ocr-category');
+  if (!r.category) {
+    ocrCatEl.textContent = '⚠ 未選分類';
+    ocrCatEl.className = 'vf-ocr';
+  } else {
+    ocrCatEl.textContent = '✓ ' + r.category;
+    ocrCatEl.className = 'vf-ocr ok';
+  }
+
+  // 異常彙整
+  const anomalies = [];
+  if (dateAnomaly) anomalies.push('日期' + (dateAnomaly === 'missing' ? '未填' : '異常'));
+  if (!r.amount) anomalies.push('金額未填');
+  if (!r.category) anomalies.push('分類未選');
+  const anomDiv = document.getElementById('vf-anomalies');
+  if (anomalies.length) {
+    anomDiv.innerHTML = '<div style="padding:8px 10px;background:rgba(240,101,101,0.08);border:1px solid rgba(240,101,101,0.2);border-radius:6px;font-size:11px;color:var(--red);">⚠ 需注意: ' + anomalies.join('、') + '</div>';
+  } else {
+    anomDiv.innerHTML = '<div style="padding:8px 10px;background:rgba(62,207,142,0.08);border:1px solid rgba(62,207,142,0.2);border-radius:6px;font-size:11px;color:var(--green);">✓ 資料看起來沒問題，請對照圖片確認</div>';
+  }
+}
+
+async function verifySave() {
+  const r = _vfList[_vfIndex];
+  if (!r) return;
+
+  const date = document.getElementById('vf-date').value || null;
+  const amount = parseFloat(document.getElementById('vf-amount').value) || null;
+  const category = document.getElementById('vf-category').value || null;
+  const invoiceType = document.getElementById('vf-invoice-type').value || 'receipt';
+  const note = document.getElementById('vf-note').value || null;
+
+  // 更新本地
+  r.purchase_date = date;
+  r.amount = amount;
+  r.category = category;
+  r.invoice_type = invoiceType;
+  r.note = note;
+  r.confirmed = true;
+
+  const localRow = window._invRows.find(x => x.id === r.id);
+  if (localRow) Object.assign(localRow, { purchase_date:date, amount:amount, category:category, invoice_type:invoiceType, note:note, confirmed:true });
+
+  // 存到 Supabase
+  await sb.from('invoices').update({
+    purchase_date: date, amount: amount, category: category,
+    invoice_type: invoiceType, note: note, confirmed: true
+  }).eq('id', r.id);
+
+  // 移除已驗證並顯示下一筆
+  _vfList.splice(_vfIndex, 1);
+  if (_vfIndex >= _vfList.length) _vfIndex = _vfList.length - 1;
+  document.getElementById('vf-total').textContent = _vfList.length;
+
+  if (_vfList.length === 0) { closeVerifyPanel(); alert('所有發票都已驗證完成！'); return; }
+  _vfShow();
+}
+
+function verifySkip() {
+  _vfIndex++;
+  if (_vfIndex >= _vfList.length) _vfIndex = 0;
+  _vfShow();
+}
+
+function verifyNav(dir) {
+  _vfIndex += dir;
+  if (_vfIndex < 0) _vfIndex = _vfList.length - 1;
+  if (_vfIndex >= _vfList.length) _vfIndex = 0;
+  _vfShow();
+}
+
+// ESC 關閉驗證面板
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('verify-overlay').style.display === 'block') {
+    closeVerifyPanel();
+  }
+});
 
 // ── i18n 語言系統 ──
 const I18N = {
