@@ -152,8 +152,12 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
 /* ── 驗證面板 ── */
 #verify-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:10000; }
 #verify-panel { position:absolute; inset:20px; display:flex; gap:0; background:var(--surface); border-radius:12px; overflow:hidden; box-shadow:0 12px 48px rgba(0,0,0,0.6); }
-#verify-img-side { flex:1; background:#0a0b0e; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; cursor:grab; user-select:none; }
-#verify-img-side img { max-width:92%; max-height:92%; object-fit:contain; border-radius:4px; }
+#verify-img-side { flex:1; background:#0a0b0e; position:relative; overflow:hidden; cursor:grab; user-select:none; }
+#verify-img-side img { position:absolute; transform-origin:50% 50%; max-width:none; }
+.vf-img-toolbar { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:6px; background:rgba(22,25,33,0.85); padding:6px 10px; border-radius:8px; border:1px solid var(--border); z-index:2; }
+.vf-img-btn { background:var(--surface2); border:1px solid var(--border); color:var(--text); width:30px; height:30px; border-radius:5px; cursor:pointer; font-size:15px; line-height:1; display:flex; align-items:center; justify-content:center; }
+.vf-img-btn:hover { border-color:var(--accent); }
+.vf-zoom-label { color:var(--muted); font-size:10px; min-width:38px; text-align:center; font-family:var(--mono); line-height:30px; }
 #verify-form-side { width:360px; display:flex; flex-direction:column; border-left:1px solid var(--border); }
 .vf-header { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
 .vf-body { flex:1; overflow-y:auto; padding:18px; }
@@ -473,7 +477,16 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   <div id="verify-panel">
     <div id="verify-img-side">
       <img id="vf-img" draggable="false" />
-      <div id="vf-img-placeholder" style="color:var(--muted);font-size:14px;position:absolute;">載入圖片中...</div>
+      <div id="vf-img-placeholder" style="color:var(--muted);font-size:14px;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);">載入圖片中...</div>
+      <div class="vf-img-toolbar">
+        <button class="vf-img-btn" onclick="vfZoom(0.8)" title="縮小">−</button>
+        <span class="vf-zoom-label" id="vf-zoom-label">100%</span>
+        <button class="vf-img-btn" onclick="vfZoom(1.25)" title="放大">＋</button>
+        <button class="vf-img-btn" onclick="vfFitImage()" title="重設">⟳</button>
+        <span style="width:1px;background:var(--border);margin:4px 2px;"></span>
+        <button class="vf-img-btn" onclick="vfRotate(-90)" title="逆時針旋轉">↺</button>
+        <button class="vf-img-btn" onclick="vfRotate(90)" title="順時針旋轉">↻</button>
+      </div>
     </div>
     <div id="verify-form-side">
       <div class="vf-header">
@@ -1889,6 +1902,7 @@ function _vfShow() {
   // 圖片
   const img = document.getElementById('vf-img');
   const placeholder = document.getElementById('vf-img-placeholder');
+  placeholder.textContent = '載入圖片中...';
   placeholder.style.display = 'block';
   img.style.display = 'none';
   const thumbId = _driveFileId(r.thumb_url || r.drive_url);
@@ -1897,12 +1911,10 @@ function _vfShow() {
   } else if (thumbId) {
     img.src = 'https://drive.google.com/thumbnail?id=' + thumbId + '&sz=w800';
   }
-  img.onload = function() { placeholder.style.display = 'none'; img.style.display = 'block'; };
+  vf.rotate = r.rotation || 0;
+  vf.scale = 1; vf.x = 0; vf.y = 0;
+  img.onload = function() { placeholder.style.display = 'none'; img.style.display = 'block'; vfFitImage(); };
   img.onerror = function() { placeholder.textContent = '圖片載入失敗'; };
-
-  // 旋轉
-  const rot = r.rotation || 0;
-  img.style.transform = rot ? 'rotate(' + rot + 'deg)' : '';
 
   // 填入目前值
   document.getElementById('vf-date').value = r.purchase_date || '';
@@ -2011,6 +2023,81 @@ function verifyNav(dir) {
   if (_vfIndex >= _vfList.length) _vfIndex = 0;
   _vfShow();
 }
+
+// ── 驗證面板：圖片縮放/平移/旋轉 ──
+let vf = { scale:1, x:0, y:0, rotate:0, dragging:false, startX:0, startY:0 };
+
+function vfFitImage() {
+  const vp  = document.getElementById('verify-img-side');
+  const img = document.getElementById('vf-img');
+  if (!img.naturalWidth) return;
+  const vpW = vp.clientWidth, vpH = vp.clientHeight;
+  const isRotated = (vf.rotate % 180) !== 0;
+  const imgW = isRotated ? img.naturalHeight : img.naturalWidth;
+  const imgH = isRotated ? img.naturalWidth  : img.naturalHeight;
+  const ratio = Math.min((vpW * 0.92) / imgW, (vpH * 0.92) / imgH, 1);
+  vf.scale = ratio; vf.x = (vpW - imgW * ratio) / 2; vf.y = (vpH - imgH * ratio) / 2;
+  vfApply();
+}
+
+function vfApply() {
+  const img = document.getElementById('vf-img');
+  const nw = img.naturalWidth, nh = img.naturalHeight;
+  const isRotated = (vf.rotate % 180) !== 0;
+  const visW = (isRotated ? nh : nw) * vf.scale;
+  const visH = (isRotated ? nw : nh) * vf.scale;
+  const tx = vf.x + visW / 2 - nw / 2;
+  const ty = vf.y + visH / 2 - nh / 2;
+  img.style.transform = 'translate('+tx+'px,'+ty+'px) scale('+vf.scale+') rotate('+vf.rotate+'deg)';
+  document.getElementById('vf-zoom-label').textContent = Math.round(vf.scale * 100) + '%';
+}
+
+function vfZoom(factor) {
+  const vp = document.getElementById('verify-img-side');
+  const cx = vp.clientWidth / 2, cy = vp.clientHeight / 2;
+  const newScale = Math.max(0.1, Math.min(10, vf.scale * factor));
+  vf.x = cx - (cx - vf.x) * (newScale / vf.scale);
+  vf.y = cy - (cy - vf.y) * (newScale / vf.scale);
+  vf.scale = newScale;
+  vfApply();
+}
+
+function vfRotate(deg) {
+  vf.rotate = (vf.rotate + deg + 360) % 360;
+  vfFitImage();
+}
+
+// 滾輪縮放
+document.getElementById('verify-img-side').addEventListener('wheel', function(e) {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.15 : 0.87;
+  const rect = this.getBoundingClientRect();
+  const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+  const newScale = Math.max(0.1, Math.min(10, vf.scale * factor));
+  vf.x = cx - (cx - vf.x) * (newScale / vf.scale);
+  vf.y = cy - (cy - vf.y) * (newScale / vf.scale);
+  vf.scale = newScale;
+  vfApply();
+}, { passive: false });
+
+// 拖曳平移
+document.getElementById('verify-img-side').addEventListener('mousedown', function(e) {
+  if (e.target.closest('.vf-img-toolbar')) return;
+  vf.dragging = true; vf.startX = e.clientX - vf.x; vf.startY = e.clientY - vf.y;
+  this.style.cursor = 'grabbing';
+});
+document.addEventListener('mousemove', function(e) {
+  if (!vf.dragging) return;
+  vf.x = e.clientX - vf.startX; vf.y = e.clientY - vf.startY;
+  vfApply();
+});
+document.addEventListener('mouseup', function() {
+  if (vf.dragging) {
+    vf.dragging = false;
+    const el = document.getElementById('verify-img-side');
+    if (el) el.style.cursor = 'grab';
+  }
+});
 
 // ESC 關閉驗證面板
 document.addEventListener('keydown', function(e) {
