@@ -240,8 +240,9 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
         <option value="2">2025年11月</option>
         <option value="3">2025年12月</option>
         <option value="4">2026年1月</option>
-        <option value="5" selected>2026年2月</option>
+        <option value="5">2026年2月</option>
         <option value="6">2026年3月</option>
+        <option value="7" selected>2026年4月</option>
       </select>
       <button onclick="changeMonth(1)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;">▶</button>
     </div>
@@ -649,23 +650,23 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
 <div id="page-products" class="page">
   <div style="margin-bottom:20px;">
     <div style="font-size:22px;font-weight:700;">商品業績報表</div>
-    <div style="font-size:12px;color:var(--muted);margin-top:2px;">2026年3月完整數據 · 來源：POS 系統</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px;">2026年4月完整數據 · 來源：POS 系統</div>
   </div>
 
   <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
     <div class="kpi revenue">
       <div class="kpi-label">總銷售金額</div>
-      <div class="kpi-value">$284,088</div>
-      <div class="kpi-change">3月完整</div>
+      <div class="kpi-value">$254,119</div>
+      <div class="kpi-change">4月完整</div>
     </div>
     <div class="kpi" style="border-top:2px solid var(--green);">
       <div class="kpi-label">總商品數量</div>
-      <div class="kpi-value" style="color:var(--green);">3,007</div>
+      <div class="kpi-value" style="color:var(--green);">2,649</div>
       <div class="kpi-change">件</div>
     </div>
     <div class="kpi" style="border-top:2px solid var(--accent2);">
       <div class="kpi-label">品項數</div>
-      <div class="kpi-value" style="color:var(--accent2);">34</div>
+      <div class="kpi-value" style="color:var(--accent2);">33</div>
       <div class="kpi-change">種商品</div>
     </div>
   </div>
@@ -673,7 +674,7 @@ tr.total-row td { color:var(--text); font-weight:600; background:var(--surface2)
   <div class="table-box">
     <div class="table-header">
       <div class="table-title">商品銷售排行</div>
-      <div style="font-size:10px;color:var(--muted);">2026年3月 · POS系統</div>
+      <div style="font-size:10px;color:var(--muted);">2026年4月 · POS系統</div>
     </div>
     <table>
       <thead><tr>
@@ -708,6 +709,7 @@ const DATA = [
   { revenue:393365, food:162040,  salary:153305, note:'最高業績', cash_open:94220,  cash_close:183295, cash_diff:-4370 },
   { revenue:209409, food:83085,   salary:97935,  note:'',         cash_open:183295, cash_close:27700,  cash_diff:123190 },
   { revenue:284088, food:null,    salary:137830, note:'3月完結',  cash_open:27700,  cash_close:159710, cash_diff:0 },
+  { revenue:254119, food:null,    salary:null,   note:'',         cash_open:0,      cash_close:0,      cash_diff:0 },
 ];
 
 // 2月食材差異警告
@@ -721,11 +723,12 @@ const FIXED_COSTS = [
   { rent:15015, util:0,    accounting:35292, tax:1000,  pos:200, wifi:600 },
   { rent:15015, util:0,    accounting:0,     tax:0,     pos:200, wifi:600 },
   { rent:15750, util:5650, accounting:4000,  tax:14204, pos:200, wifi:600 },
+  { rent:0,     util:0,    accounting:0,     tax:0,     pos:0,   wifi:0   },
 ];
 function fixedTotal(i) { const f = FIXED_COSTS[i]; return f ? f.rent + f.util + f.accounting + f.tax + f.pos + f.wifi : 0; }
 
 // DATA 月份對應 key（index → YYYY-MM）
-const DATA_MONTH_MAP = ['2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03'];
+const DATA_MONTH_MAP = ['2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03','2026-04'];
 
 async function loadFoodCosts() {
   try {
@@ -751,46 +754,45 @@ async function loadFoodCosts() {
 }
 
 const PRODUCTS = [
-  ['Cheese 雙層烤肉',310,35650],
-  ['燒肉麵包 / Braised pork',414,33190],
-  ['烤肉麵包 Grilled Meat',287,30135],
-  ['綜合麵包 / Mixed',168,21840],
-  ['Set 5',145,19575],
-  ['Set 4',144,18432],
-  ['Set1',198,17820],
-  ['雞肉麵包 / Chicken',146,14600],
-  ['Set 6',102,14484],
-  ['Mini 燒肉',216,12096],
-  ['Set 3',100,11800],
-  ['Mini 烤肉',142,10224],
-  ['Mini 綜合麵包',89,7031],
-  ['Mini 雙層烤肉',89,6962],
-  ['Mini雞肉',90,6120],
-  ['火腿麵包 / Ham',46,3680],
-  ['Set 9',33,3135],
-  ['Set 11',30,3000],
-  ['Set 2',31,2760],
-  ['Set 7',37,2849],
-  ['Set 10',25,2475],
-  ['Set 8',28,2464],
-  ['Mini 火腿麵包',19,1064],
-  ['加 起司 Cheese',54,810],
-  ['加 雞肉 Chicken',19,475],
-  ['加 烤肉 Grilled Meat',10,250],
-  ['加 燒肉 Braised Pork',13,260],
-  ['越南咖啡',12,576],
+  ['Cheese 雙層烤肉',301,34615],
+  ['燒肉麵包 / Braised pork',395,31600],
+  ['烤肉麵包 Grilled Meat',288,30240],
+  ['Set 5',143,19305],
+  ['綜合麵包 / Mixed',136,17680],
+  ['Set1',164,14760],
+  ['Set 4',116,14848],
+  ['Set 6',98,13916],
+  ['雞肉麵包 / Chicken',130,13000],
+  ['Set 3',70,8260],
+  ['Mini 烤肉',111,7992],
+  ['Mini 燒肉',129,7224],
+  ['Mini 雙層烤肉',92,7176],
+  ['Mini雞肉',79,5372],
+  ['Mini 綜合麵包',67,5293],
+  ['火腿麵包 / Ham',54,4320],
+  ['Set 7',46,3542],
+  ['Set 8',36,3168],
+  ['Set 10',30,2970],
+  ['Set 9',27,2565],
+  ['Set 11',19,1900],
+  ['Set 2',15,1350],
+  ['Mini 火腿麵包',14,784],
+  ['加 雞肉 Chicken',27,675],
+  ['越南咖啡',10,480],
+  ['加 起司 Cheese',31,465],
+  ['加 烤肉 Grilled Meat',5,125],
+  ['加 燒肉 Braised Pork',9,180],
+  ['假日滿足套餐',1,100],
+  ['起司蛋',1,80],
+  ['紅茶 Black Tea',2,74],
   ['加 火腿 Ham',2,40],
-  ['紅茶 Black Tea',1,37],
-  ['可樂 Cocacola',1,37],
-  ['豆漿 Soy Milk',1,37],
-  ['麵包',4,150],
-  ['Th',1,30],
+  ['麵包',1,20],
 ];
 
 const fmt = n => n == null ? '—' : '$' + Math.round(n).toLocaleString();
 const pct = (a,b) => b ? (a/b*100).toFixed(1)+'%' : '—';
 
-let currentMonth = 5;
+let currentMonth = 7;
 
 // ── Nav date ──
 document.getElementById('navDate').textContent = new Date().toLocaleDateString('zh-TW');
@@ -808,7 +810,7 @@ function showPage(id) {
 
 // ── Month navigation ──
 function changeMonth(dir) {
-  currentMonth = Math.max(0, Math.min(6, currentMonth + dir));
+  currentMonth = Math.max(0, Math.min(DATA.length - 1, currentMonth + dir));
   document.getElementById('monthSelect').value = currentMonth;
   updateOverview();
 }
