@@ -699,8 +699,8 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ── Data ──
-const MONTHS = ['9月','10月','11月','12月','1月','2月','3月'];
-const MONTH_LABELS = ['2025年9月','2025年10月','2025年11月','2025年12月','2026年1月','2026年2月','2026年3月'];
+const MONTHS = ['9月','10月','11月','12月','1月','2月','3月','4月'];
+const MONTH_LABELS = ['2025年9月','2025年10月','2025年11月','2025年12月','2026年1月','2026年2月','2026年3月','2026年4月'];
 const DATA = [
   { revenue:21837,  food:null,    salary:29735,  note:'開幕月',   cash_open:0,      cash_close:0,      cash_diff:0 },
   { revenue:113163, food:50277,   salary:117990, note:'Uber上線', cash_open:0,      cash_close:0,      cash_diff:0 },
@@ -709,7 +709,7 @@ const DATA = [
   { revenue:393365, food:162040,  salary:153305, note:'最高業績', cash_open:94220,  cash_close:183295, cash_diff:-4370 },
   { revenue:209409, food:83085,   salary:97935,  note:'',         cash_open:183295, cash_close:27700,  cash_diff:123190 },
   { revenue:284088, food:null,    salary:137830, note:'3月完結',  cash_open:27700,  cash_close:159710, cash_diff:0 },
-  { revenue:254119, food:null,    salary:null,   note:'',         cash_open:0,      cash_close:0,      cash_diff:0 },
+  { revenue:280162, food:null,    salary:null,   note:'4月更新',   cash_open:0,      cash_close:0,      cash_diff:0 },
 ];
 
 // 2月食材差異警告
@@ -754,39 +754,39 @@ async function loadFoodCosts() {
 }
 
 const PRODUCTS = [
-  ['Cheese 雙層烤肉',301,34615],
-  ['燒肉麵包 / Braised pork',395,31600],
-  ['烤肉麵包 Grilled Meat',288,30240],
-  ['Set 5',143,19305],
-  ['綜合麵包 / Mixed',136,17680],
-  ['Set1',164,14760],
-  ['Set 4',116,14848],
-  ['Set 6',98,13916],
-  ['雞肉麵包 / Chicken',130,13000],
-  ['Set 3',70,8260],
-  ['Mini 烤肉',111,7992],
-  ['Mini 燒肉',129,7224],
-  ['Mini 雙層烤肉',92,7176],
-  ['Mini雞肉',79,5372],
-  ['Mini 綜合麵包',67,5293],
-  ['火腿麵包 / Ham',54,4320],
-  ['Set 7',46,3542],
-  ['Set 8',36,3168],
-  ['Set 10',30,2970],
-  ['Set 9',27,2565],
-  ['Set 11',19,1900],
-  ['Set 2',15,1350],
-  ['Mini 火腿麵包',14,784],
-  ['加 雞肉 Chicken',27,675],
-  ['越南咖啡',10,480],
-  ['加 起司 Cheese',31,465],
-  ['加 烤肉 Grilled Meat',5,125],
-  ['加 燒肉 Braised Pork',9,180],
-  ['假日滿足套餐',1,100],
-  ['起司蛋',1,80],
-  ['紅茶 Black Tea',2,74],
-  ['加 火腿 Ham',2,40],
-  ['麵包',1,20],
+  ["Cheese 雙層烤肉",338,38870],
+  ["燒肉麵包 / Braised pork",436,34880],
+  ["烤肉麵包 Grilled Meat",312,32760],
+  ["Set 5",151,20385],
+  ["綜合麵包 / Mixed",149,19370],
+  ["Set 4",134,17152],
+  ["Set1",186,16740],
+  ["Set 6",107,15194],
+  ["雞肉麵包 / Chicken",145,14500],
+  ["Set 3",74,8732],
+  ["Mini 烤肉",117,8424],
+  ["Mini 燒肉",147,8232],
+  ["Mini 雙層烤肉",102,7956],
+  ["Mini雞肉",88,5984],
+  ["Mini 綜合麵包",72,5688],
+  ["火腿麵包 / Ham",61,4880],
+  ["Set 7",47,3619],
+  ["Set 8",40,3520],
+  ["Set 10",35,3465],
+  ["Set 9",28,2660],
+  ["Set 11",23,2300],
+  ["Set 2",17,1530],
+  ["Mini 火腿麵包",14,784],
+  ["加 雞肉 Chicken",29,725],
+  ["加 起司 Cheese",40,600],
+  ["越南咖啡",11,528],
+  ["加 燒肉 Braised Pork",11,220],
+  ["加 烤肉 Grilled Meat",6,150],
+  ["假日滿足套餐",1,100],
+  ["起司蛋",1,80],
+  ["紅茶 Black Tea",2,74],
+  ["加 火腿 Ham",2,40],
+  ["麵包",1,20],
 ];
 
 const fmt = n => n == null ? '—' : '$' + Math.round(n).toLocaleString();
@@ -948,7 +948,7 @@ function updateSummaryTable() {
 
 // ── Products table ──
 function buildProducts() {
-  const total = 241723;
+  const total = PRODUCTS.reduce((sum, item) => sum + item[2], 0);
   const sorted = [...PRODUCTS].sort((a,b)=>b[2]-a[2]);
   const tb = document.getElementById('productTable');
   sorted.forEach((p,i) => {
